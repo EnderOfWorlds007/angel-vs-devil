@@ -141,14 +141,93 @@ html, body {
 #intro-world-name { font-size:44px; font-weight:900; color:#fff; text-shadow:0 0 30px rgba(255,255,255,0.5); margin-bottom:16px; text-align:center; }
 #intro-flavor { font-size:16px; color:rgba(255,255,255,0.7); margin-bottom:36px; letter-spacing:1px; font-style:italic; text-align:center; max-width:420px; }
 
-/* Battle placeholder */
-#battle-placeholder {
-  position:absolute; top:0; left:0; width:100%; height:100%;
-  display:none; flex-direction:column; align-items:center; justify-content:center;
-  pointer-events:auto; background:rgba(0,0,0,0.5);
+/* Battle placeholder — hidden once real battle is active */
+#battle-placeholder { display:none; }
+
+/* Battle HUD */
+#battle-hud {
+  position:absolute; top:0; left:0; right:0;
+  display:none; align-items:flex-start; justify-content:space-between;
+  padding:8px 14px 0; pointer-events:none;
 }
-#battle-placeholder h2 { font-size:36px; color:#ffd700; margin-bottom:20px; }
-#battle-placeholder p { font-size:18px; color:rgba(255,255,255,0.7); }
+.bhud-block { display:flex; flex-direction:column; gap:3px; min-width:160px; }
+.bhud-block.right { align-items:flex-end; }
+.bhud-name { font-size:13px; font-weight:bold; color:#fff; letter-spacing:1px; text-shadow:0 1px 4px rgba(0,0,0,0.9); }
+.bhud-hp-wrap { width:160px; height:10px; background:rgba(0,0,0,0.6); border-radius:5px; border:1px solid rgba(255,255,255,0.2); overflow:hidden; }
+.bhud-hp-fill { height:100%; border-radius:5px; transition:width 0.25s ease; }
+#angel-hp-fill { background:linear-gradient(90deg,#00cc44,#44ff88); }
+#boss-hp-fill  { background:linear-gradient(90deg,#ff2222,#ff8844); }
+.bhud-hp-num   { font-size:11px; color:rgba(255,255,255,0.7); }
+
+/* Battle timer (center top) */
+#battle-timer-wrap {
+  position:absolute; top:8px; left:50%; transform:translateX(-50%);
+  display:none; pointer-events:none; z-index:10;
+}
+#battle-timer-arc { display:block; }
+
+/* Superpower chooser */
+#superpower-overlay {
+  position:absolute; top:0; left:0; right:0; bottom:0;
+  display:none; flex-direction:column; align-items:center; justify-content:center;
+  background:rgba(0,0,0,0.6); pointer-events:auto; z-index:20;
+}
+#superpower-title { font-size:22px; font-weight:bold; color:#ffd700; margin-bottom:16px; letter-spacing:2px; text-shadow:0 0 20px rgba(255,215,0,0.8); }
+#superpower-choices { display:flex; gap:12px; }
+.sp-btn {
+  width:120px; height:110px; border-radius:14px; border:2px solid rgba(255,215,0,0.5);
+  background:rgba(20,10,50,0.9); color:#fff; cursor:pointer; display:flex;
+  flex-direction:column; align-items:center; justify-content:center; gap:6px;
+  transition:all 0.15s; pointer-events:auto;
+}
+.sp-btn:hover { border-color:#ffd700; background:rgba(50,30,100,0.95); transform:scale(1.05); }
+.sp-icon { font-size:36px; }
+.sp-name { font-size:13px; font-weight:bold; color:#ffd700; }
+.sp-desc { font-size:10px; color:rgba(255,255,255,0.6); text-align:center; padding:0 4px; }
+
+/* Battle score / status text */
+#battle-status {
+  position:absolute; top:56px; left:50%; transform:translateX(-50%);
+  font-size:13px; color:rgba(255,255,255,0.55); letter-spacing:1px;
+  pointer-events:none; display:none; white-space:nowrap;
+}
+
+/* Active power indicator */
+#active-power-display {
+  position:absolute; bottom:148px; left:14px;
+  display:none; align-items:center; gap:6px;
+  font-size:13px; color:#ffd700; pointer-events:none;
+  text-shadow:0 0 8px rgba(255,215,0,0.6);
+}
+
+/* Victory / Defeat overlays */
+#outcome-overlay {
+  position:absolute; top:0; left:0; right:0; bottom:0;
+  display:none; flex-direction:column; align-items:center; justify-content:center;
+  background:rgba(0,0,0,0.78); pointer-events:auto; z-index:30;
+}
+#outcome-title { font-size:52px; font-weight:900; letter-spacing:4px; margin-bottom:8px;
+  text-shadow:0 0 40px currentColor; }
+#outcome-sub { font-size:16px; color:rgba(255,255,255,0.7); margin-bottom:24px; text-align:center; max-width:400px; }
+#outcome-stats { font-size:13px; color:rgba(255,255,255,0.6); margin-bottom:8px; text-align:center; line-height:1.8; }
+#outcome-score-breakdown { font-size:14px; color:#ffd700; margin-bottom:28px; text-align:center; line-height:2; }
+#outcome-btn { pointer-events:auto; }
+#defeat-progress-wrap { width:280px; height:14px; background:rgba(255,255,255,0.15); border-radius:7px; margin:0 auto 24px; overflow:hidden; }
+#defeat-progress-fill { height:100%; background:linear-gradient(90deg,#ff4444,#ff8800); border-radius:7px; transition:width 0.8s ease; }
+
+/* Campaign complete overlay */
+#campaign-overlay {
+  position:absolute; top:0; left:0; right:0; bottom:0;
+  display:none; flex-direction:column; align-items:center; justify-content:center;
+  background:radial-gradient(ellipse at center, rgba(30,10,80,0.95) 0%, rgba(0,0,0,0.98) 100%);
+  pointer-events:auto; z-index:40;
+}
+#campaign-title { font-size:42px; font-weight:900; color:#ffd700; letter-spacing:3px; text-align:center;
+  text-shadow:0 0 40px rgba(255,215,0,0.9); margin-bottom:8px; }
+#campaign-sub { font-size:18px; color:rgba(255,255,255,0.8); margin-bottom:6px; text-align:center; }
+#campaign-score { font-size:28px; font-weight:bold; color:#fff; margin-bottom:20px; }
+#campaign-credits { font-size:10px; color:rgba(255,255,255,0.35); text-align:center; line-height:1.9; max-width:500px; margin-bottom:24px; }
+#play-again-btn { pointer-events:auto; }
 
 /* Flash overlay */
 #flash-overlay {
@@ -246,11 +325,78 @@ html, body {
       <button class="big-btn" id="begin-btn">BEGIN</button>
     </div>
 
-    <!-- Battle placeholder -->
-    <div id="battle-placeholder">
-      <h2>⚔️ Battle Coming Soon...</h2>
-      <p>The boss fight will be implemented in the next task!</p>
+    <!-- Battle placeholder (kept hidden) -->
+    <div id="battle-placeholder"></div>
+
+    <!-- Battle HUD -->
+    <div id="battle-hud">
+      <div class="bhud-block">
+        <div class="bhud-name" id="battle-angel-name">Guardian</div>
+        <div class="bhud-hp-wrap"><div class="bhud-hp-fill" id="angel-hp-fill" style="width:100%"></div></div>
+        <div class="bhud-hp-num"><span id="angel-hp-cur">5</span> / <span id="angel-hp-max">5</span></div>
+      </div>
+      <div style="width:70px"></div><!-- spacer for timer -->
+      <div class="bhud-block right">
+        <div class="bhud-name" id="battle-boss-name">Shadow Wolf</div>
+        <div class="bhud-hp-wrap" style="text-align:right"><div class="bhud-hp-fill" id="boss-hp-fill" style="width:100%"></div></div>
+        <div class="bhud-hp-num" style="text-align:right"><span id="boss-hp-cur">4</span> / <span id="boss-hp-max">4</span></div>
+      </div>
     </div>
+
+    <!-- Battle timer -->
+    <div id="battle-timer-wrap">
+      <canvas id="battle-timer-arc" width="56" height="56"></canvas>
+    </div>
+
+    <!-- Battle status line -->
+    <div id="battle-status"></div>
+
+    <!-- Active power indicator -->
+    <div id="active-power-display"></div>
+
+    <!-- Superpower chooser overlay -->
+    <div id="superpower-overlay">
+      <div id="superpower-title">CHOOSE A POWER!</div>
+      <div id="superpower-choices">
+        <button class="sp-btn" id="sp-btn-0">
+          <div class="sp-icon">🔥</div>
+          <div class="sp-name">Wings of Fire</div>
+          <div class="sp-desc">Next attack deals double damage</div>
+        </button>
+        <button class="sp-btn" id="sp-btn-1">
+          <div class="sp-icon">⚡</div>
+          <div class="sp-name">Holy Lightning</div>
+          <div class="sp-desc">+1 hit &amp; heal angel 1 HP if correct</div>
+        </button>
+        <button class="sp-btn" id="sp-btn-2">
+          <div class="sp-icon">🛡️</div>
+          <div class="sp-name">Divine Shield</div>
+          <div class="sp-desc">Block the next boss attack</div>
+        </button>
+      </div>
+    </div>
+
+    <!-- Victory / Defeat outcome overlay -->
+    <div id="outcome-overlay">
+      <div id="outcome-title"></div>
+      <div id="outcome-sub"></div>
+      <div id="defeat-progress-wrap" style="display:none">
+        <div id="defeat-progress-fill" style="width:0%"></div>
+      </div>
+      <div id="outcome-stats"></div>
+      <div id="outcome-score-breakdown"></div>
+      <button class="big-btn" id="outcome-btn">NEXT LEVEL</button>
+    </div>
+
+    <!-- Campaign complete overlay -->
+    <div id="campaign-overlay">
+      <div id="campaign-title">YOU SAVED THE REALM!</div>
+      <div id="campaign-sub">All five levels conquered!</div>
+      <div id="campaign-score"></div>
+      <div id="campaign-credits"></div>
+      <button class="big-btn" id="play-again-btn">PLAY AGAIN</button>
+    </div>
+
   </div>
 </div>
 
@@ -291,12 +437,20 @@ const SPEED_LABELS = [
   {thresh:99,pts:50,  label:"CORRECT",   color:"#aaaaff"}
 ];
 const STREAK_MULT = [[3,1.5],[5,2.0],[7,2.5]];
+const BOSS_HP   = [4,5,6,7,9];
+const ANGEL_HP  = [5,5,4,4,4];
+const LEVEL_MULTIPLIER = [1.0,1.2,1.4,1.6,2.0];
+const BATTLE_SPEED = [
+  {thresh:3, pts:300, label:"DIVINE STRIKE", hits:3, color:"#ffd700"},
+  {thresh:5, pts:200, label:"HOLY SLASH",    hits:2, color:"#88ffcc"},
+  {thresh:99,pts:100, label:"LIGHT BEAM",    hits:1, color:"#aaddff"}
+];
 
 // ============================================================
 // GAME STATE
 // ============================================================
 let state = {
-  phase: "title",   // title | level-intro | training | battle
+  phase: "title",   // title | level-intro | training | battle | victory | defeat | campaign-complete
   currentLevel: 0,  // 0-indexed
   totalScore: 0,
   levelsCompleted: [false,false,false,false,false],
@@ -318,6 +472,35 @@ let state = {
   timerRemain: 15,
   answerLocked: false,
   showingFeedback: false,
+
+  // battle state
+  bossHP: 4,
+  bossHPMax: 4,
+  angelHP: 5,
+  angelHPMax: 5,
+  battleQuestions: [],
+  battleQIndex: 0,
+  battleQCount: 0,
+  activeSuperPower: null,   // "fire"|"lightning"|"shield"|null
+  hasShield: false,
+  battleTimerRemain: 10,
+  battleTimerMax: 10,
+  battleAnswerLocked: false,
+  battleWrongCount: 0,
+  battleCorrectCount: 0,
+  battleFastestAnswer: 99,
+  noDamageTaken: true,
+  perfectTraining: false,
+  trainingAvgTime: 0,
+  trainingTimes: [],
+  bossInitialHP: 4,
+  // animation state
+  angelX: 0, angelY: 0, bossX: 0, bossY: 0,
+  angelKnockback: 0, bossKnockback: 0,
+  angelFlash: 0, bossFlash: 0,
+  angelRise: 0,
+  bossDefeated: false, bossDefeatedTimer: 0,
+  bossEntranceX: 0, bossEntrancePhase: 0,
 };
 
 // ============================================================
@@ -1201,6 +1384,21 @@ function generateDistractors(a, b, level) {
   return choices;
 }
 
+function generateBattleQuestions(table, count, wrongAnswers) {
+  // Priority: wrong answers first (shuffled), then fill randomly
+  const shuffled = wrongAnswers.slice().sort(function() { return Math.random()-0.5; });
+  const result = [];
+  for (const w of shuffled) {
+    if (result.length >= count) break;
+    result.push({ a: w.a, b: w.b });
+  }
+  while (result.length < count) {
+    const b = Math.floor(Math.random()*10)+1;
+    result.push({ a: table, b: b });
+  }
+  return result;
+}
+
 // ============================================================
 // TRAINING TIMER
 // ============================================================
@@ -1250,6 +1448,50 @@ function drawTimerArc(fraction) {
   timerCtx.fillStyle="#fff"; timerCtx.font="bold 14px Segoe UI";
   timerCtx.textAlign="center"; timerCtx.textBaseline="middle";
   timerCtx.fillText(Math.ceil(timerRemain), cx, cy);
+}
+
+// Battle timer (separate from training timer)
+let battleTimerInterval = null;
+
+function startBattleTimer() {
+  const cfg = LEVEL_CONFIG[state.currentLevel];
+  state.battleTimerMax = cfg.battleTimer;
+  state.battleTimerRemain = cfg.battleTimer;
+  state.timerStart = Date.now();
+  if (battleTimerInterval) clearInterval(battleTimerInterval);
+  battleTimerInterval = setInterval(function() {
+    if (state.phase !== "battle" || state.battleAnswerLocked) return;
+    state.battleTimerRemain = Math.max(0, state.battleTimerMax - (Date.now() - state.timerStart)/1000);
+    const s = Math.ceil(state.battleTimerRemain);
+    if (s <= 3 && s > 0) sfxTimerUrgent();
+    drawBattleTimerArc(state.battleTimerRemain / state.battleTimerMax);
+    if (state.battleTimerRemain <= 0) {
+      clearInterval(battleTimerInterval);
+      battleTimerInterval = null;
+      handleBattleAnswer(null);
+    }
+  }, 80);
+}
+
+function stopBattleTimer() {
+  if (battleTimerInterval) { clearInterval(battleTimerInterval); battleTimerInterval = null; }
+}
+
+function drawBattleTimerArc(fraction) {
+  const cv = document.getElementById("battle-timer-arc");
+  if (!cv) return;
+  const bx = cv.getContext("2d");
+  bx.clearRect(0,0,56,56);
+  const cx=28, cy=28, r=22;
+  bx.beginPath(); bx.arc(cx,cy,r,0,Math.PI*2);
+  bx.strokeStyle="rgba(255,255,255,0.15)"; bx.lineWidth=4; bx.stroke();
+  const color = fraction > 0.4 ? "#ff8888" : fraction > 0.2 ? "#ffcc00" : "#ff2222";
+  bx.beginPath();
+  bx.arc(cx,cy,r,-Math.PI/2,-Math.PI/2 + Math.PI*2*fraction);
+  bx.strokeStyle=color; bx.lineWidth=4; bx.lineCap="round"; bx.stroke();
+  bx.fillStyle="#fff"; bx.font="bold 14px Segoe UI";
+  bx.textAlign="center"; bx.textBaseline="middle";
+  bx.fillText(Math.ceil(state.battleTimerRemain), cx, cy);
 }
 
 // ============================================================
@@ -1370,6 +1612,163 @@ function drawKrakenLord(x, y, scale) {
 }
 
 // ============================================================
+// BATTLE ATTACK ANIMATIONS
+// ============================================================
+// Particles array is shared (state.particles -> global particles[])
+
+function spawnLightBeam(ax, ay, bx2, by2) {
+  // Stream of white/gold particles from angel to boss
+  const dx = bx2 - ax, dy = by2 - ay;
+  const len = Math.sqrt(dx*dx+dy*dy);
+  const steps = Math.floor(len / 8);
+  for (let i=0; i<steps; i++) {
+    const t = i/steps;
+    const ox = (Math.random()-0.5)*8;
+    const oy = (Math.random()-0.5)*8;
+    particles.push({
+      x: ax + dx*t + ox, y: ay + dy*t + oy,
+      vx:(Math.random()-0.5)*0.8, vy:(Math.random()-0.5)*0.8,
+      life:1, decay:0.06+Math.random()*0.04,
+      r:2+Math.random()*2,
+      color:Math.random()<0.6 ? "#ffffff" : "#ffd700",
+      alpha:1
+    });
+  }
+}
+
+function spawnHolySlash(ax, ay, bx2, by2) {
+  // Golden crescent arc with sparkles
+  const midX = (ax+bx2)*0.5 + (Math.random()-0.5)*40;
+  const midY = Math.min(ay,by2) - 50;
+  for (let i=0; i<40; i++) {
+    const t = i/40;
+    // Quadratic bezier
+    const qx = (1-t)*(1-t)*ax + 2*(1-t)*t*midX + t*t*bx2;
+    const qy = (1-t)*(1-t)*ay + 2*(1-t)*t*midY + t*t*by2;
+    const color = Math.random()<0.5 ? "#ffd700" : "#ffffaa";
+    particles.push({
+      x:qx+(Math.random()-0.5)*12, y:qy+(Math.random()-0.5)*12,
+      vx:(Math.random()-0.5)*2, vy:-Math.random()*2,
+      life:1, decay:0.04+Math.random()*0.03,
+      r:2+Math.random()*3, color, alpha:1
+    });
+  }
+}
+
+function spawnDivineStrike(bx2, by2) {
+  // Golden column from top to boss
+  for (let i=0; i<80; i++) {
+    const col = Math.random()<0.7 ? "#ffd700" : (Math.random()<0.5 ? "#ffffff" : "#ffaa00");
+    particles.push({
+      x: bx2 + (Math.random()-0.5)*40,
+      y: Math.random()*by2,
+      vx:(Math.random()-0.5)*1.5, vy:Math.random()*3+1,
+      life:1, decay:0.03+Math.random()*0.02,
+      r:2+Math.random()*4, color:col, alpha:1
+    });
+  }
+  // Explosion burst at boss
+  spawnParticleBurst(bx2, by2, 40, "#ffd700", 8, 5);
+  spawnParticleBurst(bx2, by2, 20, "#ffffff", 6, 3);
+}
+
+function spawnBossAttack_ShadowWolf(ax, ay, bx2, by2) {
+  // Dark purple streak across screen + jaw snap around angel
+  for (let i=0; i<30; i++) {
+    const t = i/30;
+    particles.push({
+      x: bx2 + (ax-bx2)*t + (Math.random()-0.5)*20,
+      y: by2 + (ay-by2)*t + (Math.random()-0.5)*20,
+      vx:(Math.random()-0.5)*3, vy:(Math.random()-0.5)*3,
+      life:1, decay:0.06+Math.random()*0.04,
+      r:3+Math.random()*4,
+      color:Math.random()<0.6 ? "#6600cc" : "#aa00ff", alpha:1
+    });
+  }
+  spawnParticleBurst(ax, ay, 20, "#880088", 5, 4);
+}
+
+function spawnBossAttack_FrostWitch(ax, ay, bx2, by2) {
+  // 3-5 blue-white ice triangle shapes
+  const count = 3 + Math.floor(Math.random()*3);
+  for (let i=0; i<count; i++) {
+    const delay = i * 6;
+    const oy = (Math.random()-0.5)*60;
+    for (let j=0; j<12; j++) {
+      particles.push({
+        x: bx2, y: by2 + oy + (Math.random()-0.5)*20,
+        vx: -5-Math.random()*3, vy: (Math.random()-0.5)*1.5,
+        life: 1, decay: 0.025+Math.random()*0.02,
+        r: 3+Math.random()*3,
+        color: Math.random()<0.5 ? "#aaeeff" : "#88ccff", alpha:1,
+        _delay: delay
+      });
+    }
+  }
+  spawnParticleBurst(ax, ay, 20, "#88ccff", 4, 3);
+}
+
+function spawnBossAttack_KrakenLord(ax, ay, bx2, by2) {
+  // Thick sweep + water splash
+  for (let i=0; i<35; i++) {
+    const t = i/35;
+    particles.push({
+      x: bx2 + (ax-bx2)*t + Math.sin(t*Math.PI)*60 * (Math.random()>0.5?1:-1),
+      y: by2 + (ay-by2)*t + (Math.random()-0.5)*30,
+      vx:(Math.random()-0.5)*2, vy:-Math.random()*3,
+      life:1, decay:0.04+Math.random()*0.03,
+      r:4+Math.random()*5,
+      color:Math.random()<0.6 ? "#2266aa" : "#44aaff", alpha:1
+    });
+  }
+  spawnParticleBurst(ax, ay, 25, "#44aaff", 5, 4);
+}
+
+function spawnBossAttack_DevilQueen(ax, ay, bx2, by2) {
+  // Fireball arc from boss to angel
+  for (let i=0; i<50; i++) {
+    const t = i/50;
+    const arcY = -60*Math.sin(t*Math.PI);
+    particles.push({
+      x: bx2 + (ax-bx2)*t + (Math.random()-0.5)*18,
+      y: by2 + (ay-by2)*t + arcY + (Math.random()-0.5)*18,
+      vx:(Math.random()-0.5)*2, vy:Math.random()*2-1,
+      life:1, decay:0.04+Math.random()*0.03,
+      r:3+Math.random()*4,
+      color:Math.random()<0.5 ? "#ff4400" : "#ff8800", alpha:1
+    });
+  }
+  spawnParticleBurst(ax, ay+20, 30, "#ff6600", 6, 4);
+}
+
+function spawnBossAttack_VioletAvenger(ax, ay, bx2, by2) {
+  // Purple-black orb beam with spiral particles
+  for (let i=0; i<60; i++) {
+    const t = i/60;
+    const spiral = Math.sin(t*Math.PI*8)*15;
+    particles.push({
+      x: bx2 + (ax-bx2)*t + Math.cos(t*Math.PI*8)*spiral*0.5,
+      y: by2 + (ay-by2)*t + Math.sin(t*Math.PI*8)*spiral,
+      vx:(Math.random()-0.5)*2, vy:(Math.random()-0.5)*2,
+      life:1, decay:0.04+Math.random()*0.03,
+      r:2+Math.random()*3,
+      color:Math.random()<0.5 ? "#8800cc" : "#ff00aa", alpha:1
+    });
+  }
+  spawnParticleBurst(ax, ay, 25, "#aa00ff", 6, 4);
+}
+
+function spawnBossAttack(level, ax, ay, bx2, by2) {
+  switch(level) {
+    case 0: spawnBossAttack_ShadowWolf(ax, ay, bx2, by2); break;
+    case 1: spawnBossAttack_FrostWitch(ax, ay, bx2, by2); break;
+    case 2: spawnBossAttack_KrakenLord(ax, ay, bx2, by2); break;
+    case 3: spawnBossAttack_DevilQueen(ax, ay, bx2, by2); break;
+    case 4: spawnBossAttack_VioletAvenger(ax, ay, bx2, by2); break;
+  }
+}
+
+// ============================================================
 // POWER BAR
 // ============================================================
 function updatePowerBarDOM() {
@@ -1433,15 +1832,10 @@ function updateProgressDots() {
 function showTitle() {
   state.phase = "title";
   stopTimer();
+  stopBattleTimer();
+  hideAllOverlays();
   document.getElementById("title-screen").style.display = "flex";
-  document.getElementById("intro-screen").style.display = "none";
-  document.getElementById("question-area").style.display = "none";
-  document.getElementById("hud-top").style.display = "none";
-  document.getElementById("power-bar-wrap").style.display = "none";
-  document.getElementById("timer-bar-wrap").style.display = "none";
-  document.getElementById("streak-display").style.display = "none";
-  document.getElementById("battle-placeholder").style.display = "none";
-  document.getElementById("ready-overlay").style.display = "none";
+  state.bossDefeated = false;
   updateProgressDots();
   // Reset to level 0 background
   if (!bgCache[0]) bgCache[0] = createBgCanvas(0);
@@ -1455,14 +1849,10 @@ function showLevelIntro(levelIdx) {
   state.phase = "level-intro";
   state.currentLevel = levelIdx;
   const cfg = LEVEL_CONFIG[levelIdx];
-  document.getElementById("title-screen").style.display = "none";
+  stopBattleTimer();
+  hideAllOverlays();
   document.getElementById("intro-screen").style.display = "flex";
-  document.getElementById("question-area").style.display = "none";
-  document.getElementById("hud-top").style.display = "none";
-  document.getElementById("power-bar-wrap").style.display = "none";
-  document.getElementById("timer-bar-wrap").style.display = "none";
-  document.getElementById("battle-placeholder").style.display = "none";
-  document.getElementById("ready-overlay").style.display = "none";
+  state.bossDefeated = false;
   document.getElementById("intro-level-tag").textContent = "LEVEL " + (levelIdx+1);
   document.getElementById("intro-world-name").textContent = cfg.world.toUpperCase();
   const flavors = [
@@ -1492,16 +1882,16 @@ function startTraining(levelIdx) {
   state.levelScore = 0;
   state.questionsAnswered = 0;
   state.answerLocked = false;
+  state.trainingTimes = [];
 
   state.questionQueue = generateQuestionQueue(levelIdx);
 
-  document.getElementById("intro-screen").style.display = "none";
-  document.getElementById("title-screen").style.display = "none";
+  stopBattleTimer();
+  hideAllOverlays();
   document.getElementById("question-area").style.display = "block";
   document.getElementById("hud-top").style.display = "flex";
   document.getElementById("power-bar-wrap").style.display = "block";
   document.getElementById("timer-bar-wrap").style.display = "block";
-  document.getElementById("ready-overlay").style.display = "none";
 
   if (!bgCache[levelIdx]) bgCache[levelIdx] = createBgCanvas(levelIdx);
   resetAmbients(levelIdx);
@@ -1541,6 +1931,8 @@ function handleAnswer(chosenVal) {
   const isTimeout = (chosenVal === null);
 
   if (isCorrect) {
+    // Track answer time
+    if (state.trainingTimes) state.trainingTimes.push(elapsed);
     // Score
     let pts = 50, label = "CORRECT", color = "#aaaaff";
     for (const sp of SPEED_LABELS) {
@@ -1630,23 +2022,502 @@ function trainingComplete() {
     spawnParticleBurst(W*0.5, H*0.4, 40, "#ffd700", 8, 5);
   }, 1200);
 
-  // Transition to battle placeholder
+  // Transition to battle
   setTimeout(function() {
     document.getElementById("ready-overlay").style.display = "none";
-    showBattlePlaceholder();
+    startBattle();
   }, 3200);
 }
 
 // ============================================================
-// PHASE: BATTLE PLACEHOLDER
+// HELPERS: hide/show all overlay screens
 // ============================================================
-function showBattlePlaceholder() {
+function hideAllOverlays() {
+  ["title-screen","intro-screen","battle-hud","battle-timer-wrap","battle-status",
+   "active-power-display","superpower-overlay","outcome-overlay","campaign-overlay",
+   "question-area","hud-top","power-bar-wrap","timer-bar-wrap","streak-display",
+   "ready-overlay","battle-placeholder"].forEach(function(id) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = "none";
+  });
+}
+
+// ============================================================
+// PHASE: BATTLE
+// ============================================================
+function startBattle() {
+  const lvl = state.currentLevel;
+  const cfg = LEVEL_CONFIG[lvl];
+
   state.phase = "battle";
-  document.getElementById("battle-placeholder").style.display = "flex";
+  state.bossHP = BOSS_HP[lvl];
+  state.bossHPMax = BOSS_HP[lvl];
+  state.bossInitialHP = BOSS_HP[lvl];
+  state.angelHP = ANGEL_HP[lvl];
+  state.angelHPMax = ANGEL_HP[lvl];
+  state.battleQuestions = generateBattleQuestions(cfg.table, cfg.battleQ, state.wrongAnswers);
+  state.battleQIndex = 0;
+  state.battleQCount = cfg.battleQ;
+  state.activeSuperPower = null;
+  state.hasShield = false;
+  state.battleAnswerLocked = false;
+  state.battleWrongCount = 0;
+  state.battleCorrectCount = 0;
+  state.battleFastestAnswer = 99;
+  state.noDamageTaken = true;
+  state.bossDefeated = false;
+  state.angelKnockback = 0; state.bossKnockback = 0;
+  state.angelFlash = 0; state.bossFlash = 0;
+  state.angelRise = 0;
+
+  // Perfect training: no wrong answers
+  state.perfectTraining = (state.wrongAnswers.length === 0);
+
+  // Compute avg answer time from training (stored in state.trainingTimes if available)
+  state.trainingAvgTime = state.trainingTimes && state.trainingTimes.length ?
+    state.trainingTimes.reduce(function(a,b){return a+b;},0)/state.trainingTimes.length : 99;
+
+  // Battle positions
+  const isKraken = (lvl === 2);
+  const bossScale = isKraken ? 1.4 : 3;
+  const bossW = isKraken ? 96*bossScale : 48*bossScale;
+  const bossH = isKraken ? 128*bossScale : 64*bossScale;
+  const angelScale = 3;
+  state.angelX = 50;
+  state.angelY = H*0.28;
+  state.bossX = W - bossW - 40;
+  state.bossY = H*0.28;
+  state.bossEntranceX = W + bossW; // start off-screen right
+  state.bossEntrancePhase = 0; // 0=entering, 1=arrived
+
+  hideAllOverlays();
+  document.getElementById("battle-hud").style.display = "flex";
+  document.getElementById("battle-timer-wrap").style.display = "block";
+  document.getElementById("battle-status").style.display = "block";
+
+  // Update HUD labels
+  document.getElementById("battle-angel-name").textContent = STAGE_NAMES[state.angelStage];
+  document.getElementById("battle-boss-name").textContent = cfg.boss;
+  updateBattleHUD();
+
+  if (!bgCache[lvl]) bgCache[lvl] = createBgCanvas(lvl);
+  resetAmbients(lvl);
+
+  // Entrance sequence: boss slides in, then start first question
+  sfxBattleStart();
+  triggerFlash("rgba(0,0,0,0.8)", 400);
+
+  state.battleAnswerLocked = true;
+  setTimeout(function() {
+    state.bossEntrancePhase = 1; // entrance animation begins
+    setTimeout(function() {
+      state.bossEntrancePhase = 2; // arrived
+      showBattleQuestion();
+    }, 1200);
+  }, 600);
+}
+
+function updateBattleHUD() {
+  const aFrac = Math.max(0, state.angelHP / state.angelHPMax);
+  const bFrac = Math.max(0, state.bossHP / state.bossHPMax);
+  document.getElementById("angel-hp-fill").style.width = (aFrac*100).toFixed(1)+"%";
+  document.getElementById("boss-hp-fill").style.width  = (bFrac*100).toFixed(1)+"%";
+  document.getElementById("angel-hp-cur").textContent = Math.max(0,state.angelHP);
+  document.getElementById("boss-hp-cur").textContent  = Math.max(0,state.bossHP);
+  document.getElementById("battle-status").textContent =
+    "Q " + (state.battleQIndex+1) + "/" + state.battleQCount + "  |  Score: " + (state.totalScore+state.levelScore).toLocaleString();
+}
+
+function showBattleQuestion() {
+  if (state.phase !== "battle") return;
+
+  // Check if every 3rd question → offer superpower (before 3rd, 6th, 9th)
+  if (state.battleQIndex > 0 && state.battleQIndex % 3 === 0 && !state.activeSuperPower && !state.hasShield) {
+    showSuperpowerChoice();
+    return;
+  }
+
+  if (state.battleQIndex >= state.battleQCount) {
+    // All questions done — boss still alive, angel wins by running out of questions?
+    // Give boss 0 HP (shouldn't reach here normally) → victory
+    battleVictory();
+    return;
+  }
+
+  const q = state.battleQuestions[state.battleQIndex];
+  state.currentQ = q;
+  state.battleAnswerLocked = false;
+
+  document.getElementById("question-area").style.display = "block";
+  document.getElementById("question-text").textContent = q.a + " × " + q.b + " = ?";
+
+  const choices = generateDistractors(q.a, q.b, state.currentLevel);
+  for (let i=0; i<4; i++) {
+    const btn = document.getElementById("btn"+i);
+    btn.textContent = choices[i];
+    btn.className = "answer-btn";
+    btn.dataset.val = choices[i];
+    btn.dataset.mode = "battle";
+  }
+
+  startBattleTimer();
+}
+
+function showSuperpowerChoice() {
+  sfxSuperPower();
+  state.battleAnswerLocked = true;
+  stopBattleTimer();
   document.getElementById("question-area").style.display = "none";
-  document.getElementById("hud-top").style.display = "none";
-  document.getElementById("power-bar-wrap").style.display = "none";
-  document.getElementById("timer-bar-wrap").style.display = "none";
+  document.getElementById("superpower-overlay").style.display = "flex";
+}
+
+function selectSuperpower(type) {
+  document.getElementById("superpower-overlay").style.display = "none";
+  state.levelScore += 50;
+
+  if (type === "shield") {
+    state.hasShield = true;
+    spawnParticleBurst(state.angelX + 84, state.angelY + 96, 20, "#ffd700", 4, 3);
+    spawnFloatText("DIVINE SHIELD!", W*0.3, H*0.35, "#ffd700", 20);
+    updateActivePowerDisplay();
+  } else {
+    state.activeSuperPower = type;
+    const names = {fire:"WINGS OF FIRE!", lightning:"HOLY LIGHTNING!"};
+    spawnFloatText(names[type], W*0.3, H*0.35, "#ffd700", 20);
+    updateActivePowerDisplay();
+  }
+
+  updateBattleHUD();
+  showBattleQuestion();
+}
+
+function updateActivePowerDisplay() {
+  const el = document.getElementById("active-power-display");
+  const parts = [];
+  if (state.hasShield) parts.push("🛡️ Shield");
+  if (state.activeSuperPower === "fire") parts.push("🔥 Fire");
+  if (state.activeSuperPower === "lightning") parts.push("⚡ Lightning");
+  if (parts.length > 0) {
+    el.textContent = parts.join("  ");
+    el.style.display = "flex";
+  } else {
+    el.style.display = "none";
+  }
+}
+
+function handleBattleAnswer(chosenVal) {
+  if (state.battleAnswerLocked || state.phase !== "battle") return;
+  state.battleAnswerLocked = true;
+  stopBattleTimer();
+
+  const q = state.currentQ;
+  const correct = q.a * q.b;
+  const elapsed = (Date.now() - state.timerStart) / 1000;
+  const isCorrect = (chosenVal !== null && parseInt(chosenVal) === correct);
+
+  // Highlight buttons
+  for (let i=0; i<4; i++) {
+    const btn = document.getElementById("btn"+i);
+    if (!btn || btn.dataset.mode !== "battle") continue;
+    const val = parseInt(btn.dataset.val);
+    if (val === correct) btn.classList.add("correct");
+    else if (chosenVal !== null && val === parseInt(chosenVal)) btn.classList.add("wrong");
+  }
+
+  if (isCorrect) {
+    // Determine tier
+    let tier = BATTLE_SPEED[2]; // default LIGHT BEAM
+    for (const sp of BATTLE_SPEED) {
+      if (elapsed < sp.thresh) { tier = sp; break; }
+    }
+
+    state.battleCorrectCount++;
+    if (elapsed < state.battleFastestAnswer) state.battleFastestAnswer = elapsed;
+
+    let hits = tier.hits;
+    let pts = tier.pts;
+
+    // Superpower modifiers
+    if (state.activeSuperPower === "fire") {
+      hits *= 2;
+      state.activeSuperPower = null;
+      updateActivePowerDisplay();
+    }
+    if (state.activeSuperPower === "lightning") {
+      hits += 1;
+      state.activeSuperPower = null;
+      updateActivePowerDisplay();
+      // Heal angel
+      state.angelHP = Math.min(state.angelHPMax, state.angelHP + 1);
+      spawnParticleBurst(state.angelX+84, state.angelY+96, 15, "#00ff88", 4, 3);
+      spawnFloatText("+1 HEAL", W*0.25, H*0.45, "#00ff88", 18);
+      // Golden lightning visual
+      for (let i=0; i<15; i++) {
+        particles.push({
+          x: state.angelX + 84 + (Math.random()-0.5)*60,
+          y: Math.random()*(state.angelY+60),
+          vx:(Math.random()-0.5)*2, vy: 2+Math.random()*3,
+          life:1, decay:0.06, r:2+Math.random()*2, color:"#ffd700", alpha:1
+        });
+      }
+    }
+
+    state.levelScore += pts;
+    state.bossHP -= hits;
+
+    // Visual
+    const label = tier.label;
+    if (tier === BATTLE_SPEED[0]) {
+      sfxDivineStrike();
+      triggerShake(6);
+      triggerFlash("white", 120);
+      state.angelRise = 20;
+      const cx = state.bossX + (LEVEL_CONFIG[state.currentLevel].level === 3 ? 96*1.4 : 48*3)*0.5;
+      spawnDivineStrike(cx, state.bossY + 30);
+    } else {
+      sfxAttackHit();
+      if (tier === BATTLE_SPEED[1]) {
+        triggerShake(2);
+        spawnHolySlash(
+          state.angelX + 48*3*0.5, state.angelY + 64*3*0.5,
+          state.bossX + 48*3*0.5, state.bossY + 64*3*0.5
+        );
+      } else {
+        spawnLightBeam(
+          state.angelX + 48*3, state.angelY + 64*1.5,
+          state.bossX, state.bossY + 64*1.5
+        );
+      }
+    }
+
+    state.bossFlash = 6;
+    state.bossKnockback = 10;
+    spawnFloatText(label + " -" + hits, W*0.6, H*0.35, tier.color, 20);
+    spawnFloatText("+" + pts, W*0.5, H*0.45, "#ffd700", 18);
+
+    updateBattleHUD();
+
+    if (state.bossHP <= 0) {
+      state.bossHP = 0;
+      updateBattleHUD();
+      setTimeout(function() { battleVictory(); }, 800);
+      return;
+    }
+
+  } else {
+    // Wrong / timeout — boss attacks
+    state.battleWrongCount++;
+    state.noDamageTaken = false;
+
+    // Show correct answer for 1.5s (learning moment)
+    if (chosenVal === null) spawnFloatText("TIME!", W*0.5, H*0.4, "#ff6666", 22);
+    else spawnFloatText("WRONG!", W*0.5, H*0.4, "#ff6666", 20);
+
+    setTimeout(function() {
+      if (state.phase !== "battle") return;
+      // Check shield
+      if (state.hasShield) {
+        state.hasShield = false;
+        updateActivePowerDisplay();
+        // Shield shatters
+        spawnParticleBurst(state.angelX+84, state.angelY+96, 25, "#ffd700", 5, 4);
+        spawnFloatText("SHIELD BLOCKED!", W*0.3, H*0.38, "#ffd700", 20);
+        sfxAttackHit();
+      } else {
+        sfxDevilAttack();
+        state.angelHP -= 1;
+        state.angelFlash = 6;
+        state.angelKnockback = 10;
+
+        // Boss attack animation
+        const isKraken = (state.currentLevel === 2);
+        const bossW = isKraken ? 96*1.4 : 48*3;
+        spawnBossAttack(
+          state.currentLevel,
+          state.angelX + 48*3*0.5, state.angelY + 64*1.5,
+          state.bossX + bossW*0.5, state.bossY + (isKraken?128*1.4:64*3)*0.5
+        );
+        triggerShake(3);
+        spawnFloatText("-1 HP", W*0.28, H*0.35, "#ff4444", 20);
+        updateBattleHUD();
+      }
+
+      if (state.angelHP <= 0) {
+        state.angelHP = 0;
+        updateBattleHUD();
+        setTimeout(function() { battleDefeat(); }, 800);
+        return;
+      }
+
+      // Advance question after boss attack resolves
+      state.battleQIndex++;
+      nextBattleQuestion();
+    }, 1500);
+    return;
+  }
+
+  state.battleQIndex++;
+  setTimeout(function() { nextBattleQuestion(); }, 500);
+}
+
+function nextBattleQuestion() {
+  if (state.phase !== "battle") return;
+  document.getElementById("question-area").style.display = "none";
+  for (let i=0; i<4; i++) {
+    const btn = document.getElementById("btn"+i);
+    if (btn) { btn.className = "answer-btn"; btn.dataset.mode = ""; }
+  }
+  setTimeout(function() { showBattleQuestion(); }, 200);
+}
+
+// ============================================================
+// PHASE: VICTORY
+// ============================================================
+function battleVictory() {
+  state.phase = "victory";
+  stopBattleTimer();
+  hideAllOverlays();
+
+  sfxVictory();
+  triggerFlash("rgba(255,215,0,0.5)", 300);
+
+  // Boss dissolve particles
+  const lvl = state.currentLevel;
+  const isKraken = (lvl === 2);
+  const bossW = isKraken ? 96*1.4 : 48*3;
+  const bossH = isKraken ? 128*1.4 : 64*3;
+  const bossColors = [
+    ["#6600cc","#aa00ff"],["#88ccff","#aaeeff"],["#2266aa","#44aaff"],
+    ["#ff4400","#ff8800"],["#8800cc","#ff00aa"]
+  ][lvl];
+  for (let i=0; i<60; i++) {
+    spawnParticleBurst(state.bossX+bossW*0.5, state.bossY+bossH*0.5, 1, bossColors[Math.floor(Math.random()*bossColors.length)], 6, 4);
+  }
+  state.bossDefeated = true;
+  state.bossDefeatedTimer = 0;
+
+  state.levelsCompleted[lvl] = true;
+
+  // Compute bonuses
+  const mult = LEVEL_MULTIPLIER[lvl];
+  const base = state.levelScore;
+  let bonuses = 0;
+  const bonusLines = [];
+  if (state.noDamageTaken) { bonuses += 500; bonusLines.push("No Damage Taken: +500"); }
+  if (state.perfectTraining) { bonuses += 300; bonusLines.push("Perfect Training: +300"); }
+  if (state.trainingAvgTime < 4) { bonuses += 200; bonusLines.push("Avg Speed < 4s: +200"); }
+  const multiplied = Math.round((base + bonuses) * mult);
+  state.totalScore += multiplied;
+  state.levelScore = 0;
+
+  const acc = state.battleQCount > 0 ? Math.round(state.battleCorrectCount / state.battleQCount * 100) : 0;
+  const fastest = state.battleFastestAnswer < 99 ? state.battleFastestAnswer.toFixed(1)+"s" : "--";
+
+  setTimeout(function() {
+    if (lvl === 4) {
+      showCampaignComplete();
+      return;
+    }
+    const el = document.getElementById("outcome-overlay");
+    el.style.display = "flex";
+    const titleEl = document.getElementById("outcome-title");
+    titleEl.textContent = "VICTORY!";
+    titleEl.style.color = "#ffd700";
+    document.getElementById("outcome-sub").textContent = LEVEL_CONFIG[lvl].boss + " has been defeated!";
+    document.getElementById("defeat-progress-wrap").style.display = "none";
+    document.getElementById("outcome-stats").innerHTML =
+      "Accuracy: "+acc+"%  |  Fastest: "+fastest+"<br>Questions: "+state.battleCorrectCount+"/"+state.battleQCount;
+    let breakdown = "Base Score: "+base.toLocaleString();
+    if (bonusLines.length) breakdown += "<br>" + bonusLines.join("<br>");
+    breakdown += "<br>Level Multiplier: ×" + mult.toFixed(1);
+    breakdown += "<br><strong>TOTAL ADDED: +" + multiplied.toLocaleString() + "</strong>";
+    document.getElementById("outcome-score-breakdown").innerHTML = breakdown;
+    const btn = document.getElementById("outcome-btn");
+    btn.textContent = lvl < 4 ? "NEXT LEVEL" : "CAMPAIGN COMPLETE";
+    btn.onclick = function() {
+      document.getElementById("outcome-overlay").style.display = "none";
+      showLevelIntro(lvl + 1);
+    };
+    updateProgressDots();
+  }, 1800);
+}
+
+// ============================================================
+// PHASE: DEFEAT
+// ============================================================
+function battleDefeat() {
+  state.phase = "defeat";
+  stopBattleTimer();
+  hideAllOverlays();
+
+  sfxDefeat();
+
+  // Angel kneels (south-facing, dim)
+  state.angelFlash = 0;
+
+  const lvl = state.currentLevel;
+  const bossMaxHP = state.bossInitialHP;
+  const damagePct = Math.max(0, Math.round((1 - state.bossHP/bossMaxHP)*100));
+
+  setTimeout(function() {
+    const el = document.getElementById("outcome-overlay");
+    el.style.display = "flex";
+    const titleEl = document.getElementById("outcome-title");
+    titleEl.textContent = "DEFEATED...";
+    titleEl.style.color = "#ff4444";
+    document.getElementById("outcome-sub").textContent =
+      "You dealt "+damagePct+"% damage to "+LEVEL_CONFIG[lvl].boss+"!";
+    const pw = document.getElementById("defeat-progress-wrap");
+    pw.style.display = "block";
+    setTimeout(function() {
+      document.getElementById("defeat-progress-fill").style.width = damagePct+"%";
+    }, 100);
+    document.getElementById("outcome-stats").innerHTML =
+      "Accuracy: "+Math.round(state.battleCorrectCount/state.battleQCount*100)+"%";
+    document.getElementById("outcome-score-breakdown").innerHTML = "";
+    const btn = document.getElementById("outcome-btn");
+    btn.textContent = "RETRY";
+    btn.onclick = function() {
+      document.getElementById("outcome-overlay").style.display = "none";
+      state.levelScore = 0;
+      showLevelIntro(lvl);
+    };
+  }, 1200);
+}
+
+// ============================================================
+// PHASE: CAMPAIGN COMPLETE
+// ============================================================
+function showCampaignComplete() {
+  state.phase = "campaign-complete";
+  hideAllOverlays();
+
+  // Golden particle celebration
+  for (let i=0; i<100; i++) {
+    setTimeout(function() {
+      spawnParticleBurst(Math.random()*W, Math.random()*H*0.7, 5, "#ffd700", 6, 4);
+    }, i*80);
+  }
+
+  sfxVictory();
+  setTimeout(sfxVictory, 1000);
+
+  const el = document.getElementById("campaign-overlay");
+  el.style.display = "flex";
+  document.getElementById("campaign-score").textContent = "Total Score: "+state.totalScore.toLocaleString();
+  document.getElementById("campaign-credits").innerHTML =
+    "Character Art:<br>"+
+    "Jordan Irwin (AntumDeluge) · Svetlana Kushnariova (Cabbit)<br>"+
+    "Stephen Challener (Redshrike) · William Thompson · Lanea Zimmerman<br>"+
+    "Diligent Dodo (soniccuz)<br>"+
+    "Licences: CC-BY 3.0/4.0 · OGA-BY 3.0 · CC-BY-SA 3.0";
+  document.getElementById("play-again-btn").onclick = function() {
+    state.totalScore = 0;
+    state.levelsCompleted = [false,false,false,false,false];
+    el.style.display = "none";
+    showTitle();
+  };
+  updateProgressDots();
 }
 
 // ============================================================
@@ -1744,7 +2615,145 @@ function renderTraining() {
 
 function renderBattle() {
   renderBg();
+  // Darken for battle atmosphere
+  ctx.save();
+  ctx.fillStyle = "rgba(0,0,0,0.3)";
+  ctx.fillRect(0,0,W,H);
+  ctx.restore();
+
+  updateAmbients(state.currentLevel);
   drawAmbients();
+
+  const lvl = state.currentLevel;
+  const isKraken = (lvl === 2);
+  const angelScale = 3;
+  const bossScale = isKraken ? 1.4 : 3;
+  const bossW = isKraken ? 96*bossScale : 48*bossScale;
+  const bossH = isKraken ? 128*bossScale : 64*bossScale;
+
+  // Boss entrance animation (slides from right)
+  let drawBossX = state.bossX;
+  if (state.bossEntrancePhase === 1) {
+    // Lerp from off-screen right to bossX over ~60 ticks
+    if (!state._entranceTick) state._entranceTick = 0;
+    state._entranceTick++;
+    const t = Math.min(1, state._entranceTick / 45);
+    const ease = 1 - Math.pow(1-t, 3);
+    drawBossX = (W + bossW) + (state.bossX - (W + bossW)) * ease;
+    if (t >= 1) state.bossEntrancePhase = 2;
+  }
+  if (state.bossEntrancePhase === 0) {
+    // Not yet entered — don't draw
+  }
+
+  // Angel X with knockback
+  const ax = state.angelX + angelBobOffset*0 + (state.angelKnockback > 0 ? -state.angelKnockback : 0);
+  const ay = state.angelY + angelBobOffset - (state.angelRise || 0);
+
+  // Boss with knockback
+  const bx2 = drawBossX + (state.bossKnockback > 0 ? state.bossKnockback : 0);
+  const by2 = state.bossY + bossBobOffset;
+
+  // Decay knockback
+  if (state.angelKnockback > 0) state.angelKnockback = Math.max(0, state.angelKnockback - 1.5);
+  if (state.bossKnockback > 0)  state.bossKnockback  = Math.max(0, state.bossKnockback  - 1.5);
+  if (state.angelRise > 0)      state.angelRise       = Math.max(0, state.angelRise      - 0.8);
+
+  // Draw angel (east-facing = row 1 in sprite, but use same drawAngel which uses row 2)
+  // Use row 1 (west direction) for battle — angel faces right toward boss
+  if (state.phase === "battle" || state.phase === "victory" || state.phase === "defeat") {
+    // Draw angel
+    const angelAlpha = state.phase === "defeat" ? 0.3 : 1.0;
+    const aFlash = state.angelFlash > 0;
+    if (aFlash) {
+      ctx.save(); ctx.filter = "brightness(3)";
+      drawAngel(ax, ay, angelScale, state.angelStage, angelFrame);
+      ctx.restore();
+      state.angelFlash--;
+    } else {
+      ctx.globalAlpha = angelAlpha;
+      drawAngel(ax, ay, angelScale, state.angelStage, angelFrame);
+      ctx.globalAlpha = 1.0;
+    }
+
+    // Draw shield dome if active
+    if (state.hasShield) {
+      ctx.save();
+      ctx.strokeStyle = "rgba(255,215,0,0.8)";
+      ctx.lineWidth = 3;
+      ctx.shadowColor = "#ffd700"; ctx.shadowBlur = 20;
+      ctx.beginPath();
+      ctx.arc(ax + 48*angelScale*0.5, ay + 64*angelScale*0.5, 64*angelScale*0.6, 0, Math.PI*2);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  // Draw boss (if entered and not fully defeated)
+  if (state.bossEntrancePhase >= 1 && !state.bossDefeated) {
+    const bFlash = state.bossFlash > 0;
+    if (bFlash) {
+      ctx.save(); ctx.filter = "brightness(4)";
+      drawBossOnCanvas(lvl, bx2, by2, bossScale);
+      ctx.restore();
+      state.bossFlash--;
+    } else {
+      drawBossOnCanvas(lvl, bx2, by2, bossScale);
+    }
+  } else if (state.bossDefeated) {
+    // Boss dissolving
+    state.bossDefeatedTimer = (state.bossDefeatedTimer||0)+1;
+    const dissolveT = Math.min(1, state.bossDefeatedTimer/60);
+    if (dissolveT < 1) {
+      ctx.save();
+      ctx.globalAlpha = 1-dissolveT;
+      const sc = bossScale * (1 - dissolveT*0.5);
+      const offX = bx2 + bossW*(bossScale - sc)*0.5/bossScale;
+      ctx.translate(bx2+bossW*0.5, by2+bossH*0.5);
+      ctx.rotate(dissolveT*Math.PI*2);
+      ctx.scale(1-dissolveT*0.5, 1-dissolveT*0.5);
+      ctx.translate(-bossW*0.5, -bossH*0.5);
+      drawBossOnCanvas(lvl, 0, 0, bossScale);
+      ctx.restore();
+    }
+  }
+
+  updateParticles();
+  drawParticles();
+}
+
+function renderVictory() {
+  renderBg();
+  ctx.save(); ctx.fillStyle="rgba(0,0,0,0.35)"; ctx.fillRect(0,0,W,H); ctx.restore();
+  updateAmbients(state.currentLevel);
+  drawAmbients();
+  // Angel still visible in victory pose
+  drawAngel(state.angelX, state.angelY + angelBobOffset, 3, state.angelStage, angelFrame);
+  updateParticles(); drawParticles();
+}
+
+function renderDefeat() {
+  renderBg();
+  ctx.save(); ctx.fillStyle="rgba(0,0,0,0.55)"; ctx.fillRect(0,0,W,H); ctx.restore();
+  drawAmbients();
+  // Angel kneels (south-facing row 0/2, dimmed)
+  ctx.save(); ctx.globalAlpha = 0.3;
+  drawAngel(state.angelX, state.angelY, 3, state.angelStage, 0);
+  ctx.restore();
+  // Boss still stands on right
+  const lvl = state.currentLevel;
+  const isKraken = (lvl === 2);
+  const bossScale = isKraken ? 1.4 : 3;
+  drawBossOnCanvas(lvl, state.bossX, state.bossY, bossScale);
+  updateParticles(); drawParticles();
+}
+
+function renderCampaignComplete() {
+  renderBg();
+  ctx.save(); ctx.fillStyle="rgba(0,0,20,0.7)"; ctx.fillRect(0,0,W,H); ctx.restore();
+  // Golden particles everywhere
+  updateParticles(); drawParticles();
+  if (Math.random()<0.15) spawnParticleBurst(Math.random()*W, Math.random()*H*0.7, 3, "#ffd700", 5, 3);
 }
 
 function gameLoop(timestamp) {
@@ -1756,11 +2765,14 @@ function gameLoop(timestamp) {
   ctx.clearRect(0, 0, W, H);
 
   switch(state.phase) {
-    case "title":     renderTitle();    break;
-    case "level-intro": renderLevelIntro(); break;
-    case "training":  renderTraining(); break;
-    case "battle":    renderBattle();   break;
-    default:          renderTitle();    break;
+    case "title":            renderTitle();           break;
+    case "level-intro":      renderLevelIntro();      break;
+    case "training":         renderTraining();        break;
+    case "battle":           renderBattle();          break;
+    case "victory":          renderVictory();         break;
+    case "defeat":           renderDefeat();          break;
+    case "campaign-complete":renderCampaignComplete(); break;
+    default:                 renderTitle();           break;
   }
 }
 
@@ -1784,19 +2796,24 @@ for (let i=0; i<4; i++) {
   document.getElementById("btn"+i).addEventListener("click", (function(idx) {
     return function() {
       unlockAudio();
-      if (!state.answerLocked) {
-        handleAnswer(document.getElementById("btn"+idx).dataset.val);
+      const btn = document.getElementById("btn"+idx);
+      if (btn.dataset.mode === "battle") {
+        if (!state.battleAnswerLocked) {
+          handleBattleAnswer(btn.dataset.val);
+        }
+      } else {
+        if (!state.answerLocked) {
+          handleAnswer(btn.dataset.val);
+        }
       }
     };
   })(i));
 }
 
-// Back button from battle placeholder
-document.getElementById("battle-placeholder").addEventListener("click", function(e) {
-  if (e.target.tagName !== "BUTTON") {
-    // add continue to next level option
-  }
-});
+// Superpower buttons
+document.getElementById("sp-btn-0").addEventListener("click", function() { unlockAudio(); selectSuperpower("fire"); });
+document.getElementById("sp-btn-1").addEventListener("click", function() { unlockAudio(); selectSuperpower("lightning"); });
+document.getElementById("sp-btn-2").addEventListener("click", function() { unlockAudio(); selectSuperpower("shield"); });
 
 // ============================================================
 // INIT
