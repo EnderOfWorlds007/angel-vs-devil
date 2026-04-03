@@ -2855,9 +2855,12 @@ function doPlayerShoot() {
     triggerFlash("rgba(255,215,0,0.08)", 30);
   }
 
-  state.bossHP -= 1;
-  state.levelScore += 30;
-  spawnFloatText("-1", bossCXP - 20, state.bossY + 20, "#aaddff", 16);
+  // Archangel and Seraphim (stages 3-4) hit for 2 damage per shot
+  var shotDmg = state.angelStage >= 3 ? 2 : 1;
+  state.bossHP -= shotDmg;
+  state.levelScore += shotDmg * 30;
+  var dmgColor = shotDmg >= 2 ? "#ffd700" : "#aaddff";
+  spawnFloatText("-" + shotDmg, bossCXP - 20, state.bossY + 20, dmgColor, shotDmg >= 2 ? 18 : 16);
   updateBattleHUD();
 
   if (state.bossHP <= 0) {
