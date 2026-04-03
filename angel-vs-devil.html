@@ -119,6 +119,16 @@ html, body {
   pointer-events:auto;
 }
 .big-btn:hover { background:rgba(60,40,100,0.95); box-shadow:0 0 35px rgba(255,215,0,0.6); transform:scale(1.04); }
+#mode-select { display:flex; gap:10px; margin-bottom:16px; }
+.mode-btn {
+  padding:8px 20px; font-size:14px; font-weight:bold; letter-spacing:1px;
+  border:2px solid #555; border-radius:8px;
+  background:rgba(30,20,60,0.7); color:#888; cursor:pointer;
+  transition:all 0.15s; text-transform:uppercase;
+}
+.mode-btn:hover { border-color:#aaa; color:#ccc; }
+.mode-btn.selected { border-color:#ffd700; color:#ffd700; box-shadow:0 0 12px rgba(255,215,0,0.3); background:rgba(50,40,20,0.9); }
+.answer-btn.eliminated { opacity:0.25; border-color:#222; color:#444; pointer-events:none; transform:scale(0.95); }
 .big-btn:active { transform:scale(0.98); }
 #progress-dots { display:flex; gap:12px; margin-top:28px; }
 .dot {
@@ -306,6 +316,11 @@ html, body {
     <div id="title-screen">
       <div id="title-logo">ANGEL vs DEVIL</div>
       <div id="title-sub">MULTIPLICATION BATTLE</div>
+      <div id="mode-select">
+        <button class="mode-btn" id="mode-easy" data-mode="easy">EASY</button>
+        <button class="mode-btn selected" id="mode-normal" data-mode="normal">NORMAL</button>
+        <button class="mode-btn" id="mode-hard" data-mode="hard">HARD</button>
+      </div>
       <button class="big-btn" id="new-campaign-btn">NEW CAMPAIGN</button>
       <div id="progress-dots">
         <div class="dot" id="dot0"></div>
@@ -440,6 +455,14 @@ const STREAK_MULT = [[3,1.5],[5,2.0],[7,2.5]];
 const BOSS_HP   = [4,5,6,7,9];
 const ANGEL_HP  = [5,5,4,4,4];
 const LEVEL_MULTIPLIER = [1.0,1.2,1.4,1.6,2.0];
+
+// Difficulty modes
+var gameMode = "normal"; // easy | normal | hard
+const MODE_CONFIG = {
+  easy:   { trainTimer: 20, battleTimerAdj: 0, angelHPAdj: 1, bossHPAdj: 0, hints: true },
+  normal: { trainTimer: 15, battleTimerAdj: 0, angelHPAdj: 0, bossHPAdj: 0, hints: false },
+  hard:   { trainTimer: 10, battleTimerAdj: -2, angelHPAdj: 0, bossHPAdj: 1, hints: false },
+};
 const BATTLE_SPEED = [
   {thresh:3, pts:300, label:"DIVINE STRIKE", hits:3, color:"#ffd700"},
   {thresh:5, pts:200, label:"HOLY SLASH",    hits:2, color:"#88ffcc"},
@@ -2005,26 +2028,52 @@ let timerRemain = 15;
 let lastTickSecond = 15;
 
 function startQuestionTimer() {
-  timerRemain = 15;
-  lastTickSecond = 15;
+  var maxTime = MODE_CONFIG[gameMode].trainTimer;
+  timerRemain = maxTime;
+  lastTickSecond = maxTime;
   state.timerStart = Date.now();
+  state.hintsGiven = 0; // track which wrong answers have been eliminated
   if (timerInterval) clearInterval(timerInterval);
   timerInterval = setInterval(function() {
     if (state.phase !== "training" || state.answerLocked) return;
-    timerRemain = Math.max(0, 15 - (Date.now() - state.timerStart)/1000);
-    const s = Math.ceil(timerRemain);
+    timerRemain = Math.max(0, maxTime - (Date.now() - state.timerStart)/1000);
+    var fraction = timerRemain / maxTime;
+    var s = Math.ceil(timerRemain);
     if (s < lastTickSecond) {
       lastTickSecond = s;
       if (s <= 3 && s > 0) sfxTimerUrgent();
       else if (s > 0) sfxTimerTick();
+    }
+    // Easy mode hints: eliminate wrong answers as time passes
+    if (MODE_CONFIG[gameMode].hints && state.currentQ) {
+      var correct = state.currentQ.a * state.currentQ.b;
+      if (fraction < 0.66 && state.hintsGiven === 0) {
+        eliminateOneWrong(correct);
+        state.hintsGiven = 1;
+      } else if (fraction < 0.33 && state.hintsGiven === 1) {
+        eliminateOneWrong(correct);
+        state.hintsGiven = 2;
+      }
     }
     if (timerRemain <= 0) {
       clearInterval(timerInterval);
       timerInterval = null;
       handleAnswer(null); // timeout
     }
-    drawTimerArc(timerRemain/15);
+    drawTimerArc(fraction);
   }, 80);
+}
+
+function eliminateOneWrong(correct) {
+  // Find a visible wrong answer button and grey it out
+  for (var i = 0; i < 4; i++) {
+    var btn = document.getElementById("btn" + i);
+    if (parseInt(btn.dataset.val) !== correct && !btn.classList.contains("eliminated")) {
+      btn.classList.add("eliminated");
+      btn.disabled = true;
+      return;
+    }
+  }
 }
 
 function stopTimer() {
@@ -2053,22 +2102,38 @@ let battleTimerInterval = null;
 let lastBattleTickSecond = 99;
 
 function startBattleTimer() {
-  const cfg = LEVEL_CONFIG[state.currentLevel];
-  state.battleTimerMax = cfg.battleTimer;
-  state.battleTimerRemain = cfg.battleTimer;
+  var cfg = LEVEL_CONFIG[state.currentLevel];
+  var timerAdj = MODE_CONFIG[gameMode].battleTimerAdj;
+  var maxTime = Math.max(4, cfg.battleTimer + timerAdj);
+  state.battleTimerMax = maxTime;
+  state.battleTimerRemain = maxTime;
   state.timerStart = Date.now();
-  lastBattleTickSecond = cfg.battleTimer;
+  state.hintsGiven = 0;
+  lastBattleTickSecond = maxTime;
   if (battleTimerInterval) clearInterval(battleTimerInterval);
   battleTimerInterval = setInterval(function() {
     if (state.phase !== "battle" || state.battleAnswerLocked) return;
-    state.battleTimerRemain = Math.max(0, state.battleTimerMax - (Date.now() - state.timerStart)/1000);
-    const s = Math.ceil(state.battleTimerRemain);
+    state.battleTimerRemain = Math.max(0, maxTime - (Date.now() - state.timerStart)/1000);
+    var fraction = state.battleTimerRemain / maxTime;
+    var s = Math.ceil(state.battleTimerRemain);
     if (s < lastBattleTickSecond) {
       lastBattleTickSecond = s;
       if (s <= 3 && s > 0) sfxTimerUrgent();
       else if (s > 0) sfxTimerTick();
     }
-    drawBattleTimerArc(state.battleTimerRemain / state.battleTimerMax);
+    // Easy mode hints in battle too
+    if (MODE_CONFIG[gameMode].hints && state.battleQuestions[state.battleQIndex]) {
+      var bq = state.battleQuestions[state.battleQIndex];
+      var correct = bq.a * bq.b;
+      if (fraction < 0.66 && state.hintsGiven === 0) {
+        eliminateOneWrong(correct);
+        state.hintsGiven = 1;
+      } else if (fraction < 0.33 && state.hintsGiven === 1) {
+        eliminateOneWrong(correct);
+        state.hintsGiven = 2;
+      }
+    }
+    drawBattleTimerArc(fraction);
     if (state.battleTimerRemain <= 0) {
       clearInterval(battleTimerInterval);
       battleTimerInterval = null;
@@ -2770,6 +2835,7 @@ function nextQuestion() {
     btn.textContent = choices[i];
     btn.className = "answer-btn";
     btn.dataset.val = choices[i];
+    btn.disabled = false;
   }
   startQuestionTimer();
 }
@@ -2905,11 +2971,12 @@ function startBattle() {
   const cfg = LEVEL_CONFIG[lvl];
 
   state.phase = "battle";
-  state.bossHP = BOSS_HP[lvl];
-  state.bossHPMax = BOSS_HP[lvl];
-  state.bossInitialHP = BOSS_HP[lvl];
-  state.angelHP = ANGEL_HP[lvl];
-  state.angelHPMax = ANGEL_HP[lvl];
+  var modeHP = MODE_CONFIG[gameMode];
+  state.bossHP = BOSS_HP[lvl] + modeHP.bossHPAdj;
+  state.bossHPMax = BOSS_HP[lvl] + modeHP.bossHPAdj;
+  state.bossInitialHP = BOSS_HP[lvl] + modeHP.bossHPAdj;
+  state.angelHP = ANGEL_HP[lvl] + modeHP.angelHPAdj;
+  state.angelHPMax = ANGEL_HP[lvl] + modeHP.angelHPAdj;
   state.battleQuestions = generateBattleQuestions(cfg.table, cfg.battleQ, state.wrongAnswers);
   state.battleQIndex = 0;
   state.battleQCount = cfg.battleQ;
@@ -3019,6 +3086,7 @@ function showBattleQuestion() {
     btn.className = "answer-btn";
     btn.dataset.val = choices[i];
     btn.dataset.mode = "battle";
+    btn.disabled = false;
   }
 
   startBattleTimer();
@@ -3813,6 +3881,15 @@ function gameLoop(timestamp) {
 // ============================================================
 // UI EVENT LISTENERS
 // ============================================================
+// Mode selection
+["easy","normal","hard"].forEach(function(mode) {
+  document.getElementById("mode-" + mode).addEventListener("click", function() {
+    gameMode = mode;
+    document.querySelectorAll(".mode-btn").forEach(function(b) { b.classList.remove("selected"); });
+    this.classList.add("selected");
+  });
+});
+
 document.getElementById("new-campaign-btn").addEventListener("click", function() {
   unlockAudio();
   state.currentLevel = 0;
