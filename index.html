@@ -3489,6 +3489,7 @@ function startBattle() {
   state.lastShotTime = 0;
   state.totalShotsFired = 0;
   state.recentShots = [];
+  state.battleStartTime = Date.now();
   state.frostSparkles = [];
   state.seraphimSparkles = [];
   state.questionPending = false;
@@ -3623,7 +3624,7 @@ function scheduleNextQuestion() {
 }
 
 
-// Adaptive boss attack scheduling — boss matches the player's shooting pace
+// Adaptive boss attack scheduling — boss matches the player's shooting pace but fatigues over time
 function getAdaptiveBossInterval() {
   var bc = BATTLE_CONFIG[state.currentLevel];
   var baseInterval = bc.bossAutoInterval * 1000; // fallback in ms
@@ -3631,16 +3632,21 @@ function getAdaptiveBossInterval() {
   var shots = state.recentShots;
   var playerInterval;
   if (shots.length < 10) {
-    // Use last 2 shots for immediate responsiveness
     playerInterval = shots[shots.length - 1] - shots[shots.length - 2];
   } else {
-    // Use rolling average of last 10
     playerInterval = (shots[shots.length - 1] - shots[0]) / (shots.length - 1);
   }
   // Boss attacks at 1.3x the player's pace
   var bossInterval = playerInterval * 1.3;
-  // Clamp: min 800ms, max = base config
-  return Math.max(800, Math.min(bossInterval, baseInterval));
+  // Boss fatigue: after 15 seconds of battle, boss slows down progressively
+  // At 15s: 1.0x, at 30s: 1.3x, at 45s: 1.6x, at 60s: 2.0x
+  var battleElapsed = (Date.now() - (state.battleStartTime || Date.now())) / 1000;
+  if (battleElapsed > 15) {
+    var fatigue = 1.0 + (battleElapsed - 15) / 45; // ramps from 1.0 to ~2.0 over 45s
+    bossInterval *= fatigue;
+  }
+  // Clamp: min 800ms, max = base config * 2 (fatigued boss can be slower than base)
+  return Math.max(800, Math.min(bossInterval, baseInterval * 2));
 }
 
 function scheduleBossAttack() {
