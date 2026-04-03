@@ -449,7 +449,7 @@ const BATTLE_SPEED = [
 // ============================================================
 // GAME STATE
 // ============================================================
-let state = {
+var state = window.state = {
   phase: "title",   // title | level-intro | training | battle | victory | defeat | campaign-complete
   currentLevel: 0,  // 0-indexed
   totalScore: 0,
@@ -1514,18 +1514,24 @@ function drawTimerArc(fraction) {
 
 // Battle timer (separate from training timer)
 let battleTimerInterval = null;
+let lastBattleTickSecond = 99;
 
 function startBattleTimer() {
   const cfg = LEVEL_CONFIG[state.currentLevel];
   state.battleTimerMax = cfg.battleTimer;
   state.battleTimerRemain = cfg.battleTimer;
   state.timerStart = Date.now();
+  lastBattleTickSecond = cfg.battleTimer;
   if (battleTimerInterval) clearInterval(battleTimerInterval);
   battleTimerInterval = setInterval(function() {
     if (state.phase !== "battle" || state.battleAnswerLocked) return;
     state.battleTimerRemain = Math.max(0, state.battleTimerMax - (Date.now() - state.timerStart)/1000);
     const s = Math.ceil(state.battleTimerRemain);
-    if (s <= 3 && s > 0) sfxTimerUrgent();
+    if (s < lastBattleTickSecond) {
+      lastBattleTickSecond = s;
+      if (s <= 3 && s > 0) sfxTimerUrgent();
+      else if (s > 0) sfxTimerTick();
+    }
     drawBattleTimerArc(state.battleTimerRemain / state.battleTimerMax);
     if (state.battleTimerRemain <= 0) {
       clearInterval(battleTimerInterval);
@@ -1587,15 +1593,55 @@ function updateBossAnim() {
 }
 
 function drawBossOnCanvas(level, x, y, scale) {
+  const col = bossFrame % 3;
   switch(level) {
-    case 0: drawShadowWolf(x, y, scale); break;
-    case 1: drawFrostWitch(x, y, scale); break;
-    case 2: drawKrakenLord(x, y, scale); break;
+    case 0: // Shadow Wolf — werewolf sprite with purple tint
+      drawSprite("werewolf", 0, col, x, y, scale, 1.0);
+      // Purple shadow aura
+      ctx.save();
+      ctx.globalAlpha = 0.25;
+      ctx.shadowColor = "#8800ff"; ctx.shadowBlur = 20;
+      ctx.fillStyle = "rgba(100,0,180,0.3)";
+      ctx.fillRect(x, y, 48*scale, 64*scale);
+      ctx.restore();
+      break;
+    case 1: // Frost Witch — witch sprite with blue-ice tint
+      drawSprite("witch", 0, col, x, y, scale, 1.0);
+      // Ice tint overlay using temp canvas
+      ctx.save();
+      var fw1 = 48, fh1 = 64;
+      var tmp1 = document.createElement("canvas");
+      tmp1.width = fw1; tmp1.height = fh1;
+      var tc1 = tmp1.getContext("2d");
+      tc1.imageSmoothingEnabled = false;
+      if (spriteFrames["witch"] && spriteFrames["witch"][0]) {
+        tc1.drawImage(spriteFrames["witch"][0][col], 0, 0);
+        tc1.globalCompositeOperation = "source-atop";
+        tc1.fillStyle = "rgba(100,180,255,0.3)";
+        tc1.fillRect(0, 0, fw1, fh1);
+      }
+      ctx.drawImage(tmp1, x, y, fw1*scale, fh1*scale);
+      ctx.globalAlpha = 0.3;
+      ctx.shadowColor = "#88ccff"; ctx.shadowBlur = 15;
+      ctx.fillStyle = "rgba(100,180,255,0.15)";
+      ctx.fillRect(x, y, fw1*scale, fh1*scale);
+      ctx.restore();
+      break;
+    case 2: // Kraken Lord — kraken sprite (96x128 frames)
+      drawSprite("kraken", 0, col, x, y, scale, 1.0);
+      // Teal glow
+      ctx.save();
+      ctx.globalAlpha = 0.2;
+      ctx.shadowColor = "#22aacc"; ctx.shadowBlur = 20;
+      ctx.fillStyle = "rgba(30,150,180,0.2)";
+      ctx.fillRect(x, y, 96*scale, 128*scale);
+      ctx.restore();
+      break;
     case 3: // Devil Queen sprite
-      drawSprite("devil", 0, bossFrame%3, x, y, scale, 1.0);
+      drawSprite("devil", 0, col, x, y, scale, 1.0);
       break;
     case 4: // Violet Avenger sprite
-      drawSprite("violet", 0, bossFrame%3, x, y, scale, 1.0);
+      drawSprite("violet", 0, col, x, y, scale, 1.0);
       break;
   }
 }
@@ -1657,11 +1703,20 @@ function drawFrostWitch(x, y, scale) {
   ctx.beginPath(); ctx.moveTo(gx+s*0.8, gy+s*0.3); ctx.lineTo(gx+s*0.8, gy+s*0.9); ctx.stroke();
   ctx.shadowColor="#88ccff"; ctx.shadowBlur=12;
   ctx.fillStyle="#88eeff"; ctx.beginPath(); ctx.arc(gx+s*0.8, gy+s*0.24, s*0.07, 0, Math.PI*2); ctx.fill();
-  // Blue-ice tint overlay on the witch figure
-  ctx.globalCompositeOperation = "source-atop";
-  ctx.fillStyle = "rgba(100,180,255,0.3)";
-  ctx.fillRect(gx, gy, s, s);
-  ctx.globalCompositeOperation = "source-over";
+  ctx.restore();
+  // Blue-ice tint overlay on the witch figure (drawn after restore to avoid compositing artifacts)
+  ctx.save();
+  ctx.globalAlpha = 0.18;
+  ctx.fillStyle = "rgba(100,180,255,1)";
+  ctx.beginPath();
+  // Clip to witch body area: robe trapezoid + body ellipse
+  ctx.moveTo(gx+s*0.2,gy+s*0.4); ctx.lineTo(gx+s*0.1,gy+s); ctx.lineTo(gx+s*0.9,gy+s); ctx.lineTo(gx+s*0.8,gy+s*0.4); ctx.closePath();
+  ctx.fill();
+  ctx.globalAlpha = 0.12;
+  ctx.beginPath();
+  ctx.ellipse(gx+s*0.5, gy+s*0.38, s*0.18, s*0.22, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(gx+s*0.5, gy+s*0.18, s*0.16, s*0.15, 0, 0, Math.PI*2); ctx.fill();
   ctx.restore();
   // Frost sparkles around idle position
   if (!state.frostSparkles) state.frostSparkles = [];
@@ -2027,6 +2082,11 @@ function startTraining(levelIdx) {
 
   stopBattleTimer();
   hideAllOverlays();
+  // Clear battle mode from answer buttons (leftover from previous level's battle)
+  for (let i = 0; i < 4; i++) {
+    const btn = document.getElementById("btn" + i);
+    if (btn) { btn.dataset.mode = ""; btn.className = "answer-btn"; }
+  }
   document.getElementById("question-area").style.display = "block";
   document.getElementById("hud-top").style.display = "flex";
   document.getElementById("power-bar-wrap").style.display = "block";
@@ -2265,6 +2325,8 @@ function updateBattleHUD() {
   document.getElementById("boss-hp-fill").style.width  = (bFrac*100).toFixed(1)+"%";
   document.getElementById("angel-hp-cur").textContent = Math.max(0,state.angelHP);
   document.getElementById("boss-hp-cur").textContent  = Math.max(0,state.bossHP);
+  document.getElementById("angel-hp-max").textContent = state.angelHPMax;
+  document.getElementById("boss-hp-max").textContent  = state.bossHPMax;
   document.getElementById("battle-status").textContent =
     "Q " + (state.battleQIndex+1) + "/" + state.battleQCount + "  |  Score: " + (state.totalScore+state.levelScore).toLocaleString();
 }
@@ -2413,7 +2475,7 @@ function handleBattleAnswer(chosenVal) {
       triggerShake(6);
       triggerFlash("white", 120);
       state.angelRise = 20;
-      const cx = state.bossX + (LEVEL_CONFIG[state.currentLevel].level === 3 ? 96*1.4 : 48*3)*0.5;
+      const cx = state.bossX + (state.currentLevel === 2 ? 96*1.4 : 48*3)*0.5;
       spawnDivineStrike(cx, state.bossY + 30);
     } else {
       sfxAttackHit();
@@ -2451,8 +2513,8 @@ function handleBattleAnswer(chosenVal) {
     state.noDamageTaken = false;
 
     // Show correct answer for 1.5s (learning moment)
-    if (chosenVal === null) spawnFloatText("TIME!", W*0.5, H*0.4, "#ff6666", 22);
-    else spawnFloatText("WRONG!", W*0.5, H*0.4, "#ff6666", 20);
+    if (chosenVal === null) spawnFloatText("TIME! = " + correct, W*0.5, H*0.4, "#ff6666", 22);
+    else spawnFloatText("✗ " + correct, W*0.5, H*0.4, "#ff6666", 20);
 
     setTimeout(function() {
       if (state.phase !== "battle") return;
