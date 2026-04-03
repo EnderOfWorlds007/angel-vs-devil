@@ -3619,16 +3619,21 @@ function scheduleNextQuestion() {
 // Adaptive boss attack scheduling — boss matches the player's shooting pace
 function getAdaptiveBossInterval() {
   var bc = BATTLE_CONFIG[state.currentLevel];
-  var baseInterval = bc.bossAutoInterval; // fallback
-  if (!state.recentShots || state.recentShots.length < 3) return baseInterval * 1000;
-  // Calculate player's average interval between shots (last 10)
+  var baseInterval = bc.bossAutoInterval * 1000; // fallback in ms
+  if (!state.recentShots || state.recentShots.length < 2) return baseInterval;
   var shots = state.recentShots;
-  var totalGap = shots[shots.length - 1] - shots[0];
-  var avgInterval = totalGap / (shots.length - 1); // ms between shots
-  // Boss attacks at 1.3x the player's pace (slightly slower than the kid)
-  var bossInterval = avgInterval * 1.3;
-  // Clamp: min 800ms, max = base config interval
-  return Math.max(800, Math.min(bossInterval, baseInterval * 1000));
+  var playerInterval;
+  if (shots.length < 10) {
+    // Use last 2 shots for immediate responsiveness
+    playerInterval = shots[shots.length - 1] - shots[shots.length - 2];
+  } else {
+    // Use rolling average of last 10
+    playerInterval = (shots[shots.length - 1] - shots[0]) / (shots.length - 1);
+  }
+  // Boss attacks at 1.3x the player's pace
+  var bossInterval = playerInterval * 1.3;
+  // Clamp: min 800ms, max = base config
+  return Math.max(800, Math.min(bossInterval, baseInterval));
 }
 
 function scheduleBossAttack() {
