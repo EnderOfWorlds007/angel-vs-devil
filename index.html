@@ -3369,6 +3369,13 @@ function handleAnswer(chosenVal) {
     checkEvolution();
     updateHUD();
 
+    // Power bar full → skip remaining questions, go to battle
+    if (state.powerBar >= 100) {
+      state.questionsAnswered = LEVEL_CONFIG[state.currentLevel].trainQ;
+      setTimeout(function() { trainingComplete(); }, 600);
+      return;
+    }
+
     setTimeout(function() { nextQuestion(); }, 600);
 
   } else {
