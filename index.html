@@ -2582,7 +2582,9 @@ function updatePowerBarDOM() {
 
 function computePowerBar() {
   const cfg = LEVEL_CONFIG[state.currentLevel];
-  return Math.min(100, (state.correctCount / cfg.trainQ) * 100);
+  var base = state.powerBarBase || 0;
+  var fromAnswers = (state.correctCount / cfg.trainQ) * 100;
+  return Math.min(100, base + fromAnswers);
 }
 
 // ============================================================
@@ -2709,8 +2711,12 @@ function showLevelIntro(levelIdx) {
 function startTraining(levelIdx) {
   state.phase = "training";
   state.currentLevel = levelIdx;
-  state.angelStage = 0;
-  state.powerBar = 0;
+  // Carry over power from previous level (0 for first level or retry)
+  var carryOver = state.powerBarCarryOver || 0;
+  state.powerBar = carryOver;
+  state.powerBarBase = carryOver; // base offset for computePowerBar
+  // Set starting angel stage based on carried power
+  state.angelStage = carryOver >= 100 ? 4 : carryOver >= 70 ? 3 : carryOver >= 45 ? 2 : carryOver >= 20 ? 1 : 0;
   state.streak = 0;
   state.correctCount = 0;
   state.wrongAnswers = [];
@@ -2944,6 +2950,8 @@ function startBattle() {
   hideAllOverlays();
   document.getElementById("battle-hud").style.display = "flex";
   document.getElementById("battle-timer-wrap").style.display = "block";
+  document.getElementById("power-bar-wrap").style.display = "block";
+  updatePowerBarDOM();
   document.getElementById("battle-status").style.display = "block";
 
   // Update HUD labels
@@ -3179,6 +3187,9 @@ function handleBattleAnswer(chosenVal) {
       } else {
         sfxDevilAttack();
         state.angelHP -= 1;
+        // Drain power bar on hit (15%)
+        state.powerBar = Math.max(0, state.powerBar - 15);
+        updatePowerBarDOM();
         state.angelFlash = 6;
         state.angelKnockback = 10;
 
@@ -3250,6 +3261,9 @@ function battleVictory() {
   state.bossDefeatedTimer = 0;
 
   state.levelsCompleted[lvl] = true;
+
+  // Carry over 50% of power bar to next level
+  state.powerBarCarryOver = Math.round(state.powerBar * 0.5);
 
   // Compute bonuses
   const mult = LEVEL_MULTIPLIER[lvl];
@@ -3333,6 +3347,7 @@ function battleDefeat() {
     btn.onclick = function() {
       document.getElementById("outcome-overlay").style.display = "none";
       state.levelScore = 0;
+      state.powerBarCarryOver = 0; // No carry-over on retry
       showLevelIntro(lvl);
     };
   }, 1200);
@@ -3802,6 +3817,7 @@ document.getElementById("new-campaign-btn").addEventListener("click", function()
   unlockAudio();
   state.currentLevel = 0;
   state.totalScore = 0;
+  state.powerBarCarryOver = 0;
   state.levelsCompleted = [false,false,false,false,false];
   showLevelIntro(0);
 });
