@@ -1316,8 +1316,547 @@ function drawParticles() {
   particles.forEach(function(p) {
     ctx.save(); ctx.globalAlpha = p.alpha;
     ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
-    ctx.fillStyle = p.color; ctx.fill(); ctx.restore();
+    ctx.fillStyle = p.color;
+    if (p.glow) { ctx.shadowColor = p.glow; ctx.shadowBlur = p.r * 2.5; }
+    ctx.fill(); ctx.restore();
   });
+}
+
+// ============================================================
+// ACTIVE EFFECTS SYSTEM — canvas-drawn animated overlays
+// ============================================================
+const activeEffects = [];
+
+function addEffect(type, params, duration) {
+  activeEffects.push({ type, params, start: Date.now(), duration });
+}
+
+function renderEffects() {
+  const now = Date.now();
+  for (let i = activeEffects.length - 1; i >= 0; i--) {
+    const e = activeEffects[i];
+    const elapsed = now - e.start;
+    if (elapsed >= e.duration) { activeEffects.splice(i, 1); continue; }
+    const t = elapsed / e.duration; // 0..1
+    const p2 = e.params;
+    ctx.save();
+
+    switch (e.type) {
+
+      // ---- LIGHT BEAM: growing beam from angel to boss ----
+      case "lightBeam": {
+        const { ax, ay, bx, by } = p2;
+        const reach = Math.min(1, t / 0.4); // beam extends during first 40%
+        const alpha = t < 0.5 ? 1 : 1 - (t - 0.5) / 0.5;
+        const ex = ax + (bx - ax) * reach;
+        const ey = ay + (by - ay) * reach;
+        // Outer glow
+        const grad = ctx.createLinearGradient(ax, ay, ex, ey);
+        grad.addColorStop(0, "rgba(180,220,255,0)");
+        grad.addColorStop(0.2, "rgba(180,220,255,0.6)");
+        grad.addColorStop(0.8, "rgba(255,255,255,0.8)");
+        grad.addColorStop(1, "rgba(255,255,255,0)");
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = 18;
+        ctx.lineCap = "round";
+        ctx.globalAlpha = alpha * 0.5;
+        ctx.shadowColor = "#aaddff"; ctx.shadowBlur = 25;
+        ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(ex, ey); ctx.stroke();
+        // Core bright line
+        ctx.strokeStyle = "rgba(255,255,255,0.95)";
+        ctx.lineWidth = 5;
+        ctx.globalAlpha = alpha;
+        ctx.shadowColor = "#ffffff"; ctx.shadowBlur = 15;
+        ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(ex, ey); ctx.stroke();
+        break;
+      }
+
+      // ---- HOLY SLASH: sweeping golden crescent arc ----
+      case "holySlash": {
+        const { ax, ay, bx, by } = p2;
+        const midX = (ax + bx) * 0.5;
+        const midY = Math.min(ay, by) - 70;
+        const draw = Math.min(1, t / 0.45);
+        const alpha = t < 0.5 ? 1 : 1 - (t - 0.5) / 0.5;
+        ctx.globalAlpha = alpha;
+        // Draw the crescent arc as a bezier stroke segment
+        ctx.strokeStyle = "#ffd700";
+        ctx.lineWidth = 10;
+        ctx.lineCap = "round";
+        ctx.shadowColor = "#ffdd44"; ctx.shadowBlur = 22;
+        ctx.beginPath();
+        // Parameterise the quadratic bezier up to draw progress
+        const pts = 40;
+        const endPts = Math.max(2, Math.floor(pts * draw));
+        ctx.moveTo(ax, ay);
+        for (let si = 1; si <= endPts; si++) {
+          const st = si / pts;
+          const qx = (1-st)*(1-st)*ax + 2*(1-st)*st*midX + st*st*bx;
+          const qy = (1-st)*(1-st)*ay + 2*(1-st)*st*midY + st*st*by;
+          ctx.lineTo(qx, qy);
+        }
+        ctx.stroke();
+        // Bright inner highlight
+        ctx.strokeStyle = "#fffff0";
+        ctx.lineWidth = 3;
+        ctx.shadowBlur = 8;
+        ctx.beginPath(); ctx.moveTo(ax, ay);
+        for (let si = 1; si <= endPts; si++) {
+          const st = si / pts;
+          const qx = (1-st)*(1-st)*ax + 2*(1-st)*st*midX + st*st*bx;
+          const qy = (1-st)*(1-st)*ay + 2*(1-st)*st*midY + st*st*by;
+          ctx.lineTo(qx, qy);
+        }
+        ctx.stroke();
+        break;
+      }
+
+      // ---- HOLY SLASH STARBURST: rays at impact ----
+      case "starBurst": {
+        const { x, y, color } = p2;
+        const alpha = 1 - t;
+        const rayLen = 35 * (1 - t * 0.4);
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2.5;
+        ctx.shadowColor = color; ctx.shadowBlur = 12;
+        const rays = 10;
+        for (let ri = 0; ri < rays; ri++) {
+          const angle = (ri / rays) * Math.PI * 2;
+          const inner = 6 + t * 10;
+          ctx.beginPath();
+          ctx.moveTo(x + Math.cos(angle)*inner, y + Math.sin(angle)*inner);
+          ctx.lineTo(x + Math.cos(angle)*rayLen, y + Math.sin(angle)*rayLen);
+          ctx.stroke();
+        }
+        break;
+      }
+
+      // ---- DIVINE BEAM: massive column of light from sky ----
+      case "divineBeam": {
+        const { bx, by } = p2;
+        const revealT = Math.min(1, t / 0.2);      // beam appears
+        const holdT   = t < 0.7 ? 1 : 1 - (t - 0.7) / 0.3; // fade after 70%
+        const pulse   = 0.8 + 0.2 * Math.sin(t * Math.PI * 14);
+        const beamW   = 80 * revealT * pulse;
+        const alpha   = revealT * holdT;
+        if (beamW < 1) break;
+        // Outer haze column
+        const grd = ctx.createLinearGradient(bx - beamW, 0, bx + beamW, 0);
+        grd.addColorStop(0,   "rgba(255,220,80,0)");
+        grd.addColorStop(0.3, "rgba(255,200,50,0.25)");
+        grd.addColorStop(0.5, "rgba(255,255,160,0.55)");
+        grd.addColorStop(0.7, "rgba(255,200,50,0.25)");
+        grd.addColorStop(1,   "rgba(255,220,80,0)");
+        ctx.fillStyle = grd;
+        ctx.globalAlpha = alpha;
+        ctx.shadowColor = "#ffd700"; ctx.shadowBlur = 40;
+        ctx.fillRect(bx - beamW, 0, beamW * 2, by + 20);
+        // Bright core
+        const coreW = beamW * 0.25;
+        const coreGrd = ctx.createLinearGradient(bx - coreW, 0, bx + coreW, 0);
+        coreGrd.addColorStop(0,   "rgba(255,255,255,0)");
+        coreGrd.addColorStop(0.5, "rgba(255,255,255,0.9)");
+        coreGrd.addColorStop(1,   "rgba(255,255,255,0)");
+        ctx.fillStyle = coreGrd;
+        ctx.globalAlpha = alpha;
+        ctx.shadowColor = "#ffffff"; ctx.shadowBlur = 25;
+        ctx.fillRect(bx - coreW, 0, coreW * 2, by + 20);
+        break;
+      }
+
+      // ---- DIVINE LIGHTNING: jagged bolt around the column ----
+      case "divineLightning": {
+        const { bx, by, seed } = p2;
+        const alpha = (1 - t) * (0.5 + 0.5 * Math.sin(t * Math.PI * 20));
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 1.5 + (1 - t) * 2;
+        ctx.shadowColor = "#aaddff"; ctx.shadowBlur = 10;
+        // Generate deterministic jagged path using seed
+        const rng = (n) => { let x2 = Math.sin(seed + n) * 43758.5453; return x2 - Math.floor(x2); };
+        const segments = 10;
+        const side = rng(0) > 0.5 ? 1 : -1;
+        const startX = bx + side * (30 + rng(1) * 50);
+        ctx.beginPath();
+        ctx.moveTo(startX, 0);
+        for (let seg = 1; seg <= segments; seg++) {
+          const sy = (seg / segments) * by;
+          const sx = startX + (rng(seg * 3) - 0.5) * 80;
+          ctx.lineTo(sx, sy);
+        }
+        ctx.lineTo(bx + (rng(99) - 0.5) * 20, by);
+        ctx.stroke();
+        break;
+      }
+
+      // ---- DIVINE SHOCKWAVE: expanding ring ----
+      case "shockwave": {
+        const { x, y, color } = p2;
+        const radius = t * 180;
+        const alpha = (1 - t) * 0.8;
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 4 * (1 - t * 0.7);
+        ctx.shadowColor = color; ctx.shadowBlur = 15;
+        ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.stroke();
+        // Second ring, slightly behind
+        if (t > 0.1) {
+          const r2 = (t - 0.1) * 200;
+          ctx.globalAlpha = alpha * 0.5;
+          ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(x, y, r2, 0, Math.PI * 2); ctx.stroke();
+        }
+        break;
+      }
+
+      // ---- SCREEN TINT overlay ----
+      case "screenTint": {
+        const { color } = p2;
+        const alpha = t < 0.25 ? t / 0.25 : 1 - (t - 0.25) / 0.75;
+        ctx.globalAlpha = alpha * 0.28;
+        ctx.fillStyle = color;
+        ctx.fillRect(0, 0, W, H);
+        break;
+      }
+
+      // ---- SCREEN DIM overlay ----
+      case "screenDim": {
+        const alpha = t < 0.3 ? t / 0.3 : 1 - (t - 0.3) / 0.7;
+        ctx.globalAlpha = alpha * 0.55;
+        ctx.fillStyle = "#000000";
+        ctx.fillRect(0, 0, W, H);
+        break;
+      }
+
+      // ---- SHADOW WOLF jaw swoosh ----
+      case "shadowJaw": {
+        const { cx: jx, cy: jy, flip } = p2;
+        // Two arcs that snap shut
+        const snapT = Math.min(1, t / 0.4);
+        const openAngle = (1 - snapT) * 0.7;
+        const alpha = t < 0.5 ? 1 : 1 - (t - 0.5) / 0.5;
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = "#6600cc";
+        ctx.lineWidth = 5;
+        ctx.shadowColor = "#aa00ff"; ctx.shadowBlur = 18;
+        const r3 = 36;
+        const dir = flip ? -1 : 1;
+        // Top jaw
+        ctx.beginPath();
+        ctx.arc(jx, jy, r3, -Math.PI * 0.3 - openAngle * dir, -Math.PI * 0.3 + Math.PI * 0.55 + openAngle * dir);
+        ctx.stroke();
+        // Bottom jaw (mirrored)
+        ctx.beginPath();
+        ctx.arc(jx, jy + 18, r3, Math.PI * 0.8 - openAngle * dir, Math.PI * 0.8 + Math.PI * 0.55 + openAngle * dir);
+        ctx.stroke();
+        break;
+      }
+
+      // ---- SHADOW WOLF swoosh arc ----
+      case "shadowSwoosh": {
+        const { ax, ay, bx, by } = p2;
+        const alpha = 1 - t;
+        ctx.globalAlpha = alpha * 0.7;
+        const midX2 = (ax + bx) * 0.5 + 40;
+        const midY2 = (ay + by) * 0.5 - 50;
+        ctx.strokeStyle = "#3a0066";
+        ctx.lineWidth = 18 * (1 - t * 0.5);
+        ctx.lineCap = "round";
+        ctx.shadowColor = "#7700bb"; ctx.shadowBlur = 20;
+        ctx.beginPath(); ctx.moveTo(ax, ay);
+        ctx.quadraticCurveTo(midX2, midY2, bx, by);
+        ctx.stroke();
+        ctx.strokeStyle = "#aa00ff";
+        ctx.lineWidth = 5;
+        ctx.shadowBlur = 10;
+        ctx.beginPath(); ctx.moveTo(ax, ay);
+        ctx.quadraticCurveTo(midX2, midY2, bx, by);
+        ctx.stroke();
+        break;
+      }
+
+      // ---- FROST SHARD: animated triangle ----
+      case "frostShard": {
+        const { sx, sy, ex: fex, ey: fey, rot } = p2;
+        const px3 = sx + (fex - sx) * t;
+        const py3 = sy + (fey - sy) * t;
+        const alpha = t < 0.7 ? 1 : 1 - (t - 0.7) / 0.3;
+        const sz2 = 12 + Math.sin(rot) * 4;
+        ctx.globalAlpha = alpha;
+        ctx.save();
+        ctx.translate(px3, py3);
+        ctx.rotate(rot + t * Math.PI * 3);
+        ctx.fillStyle = "#aaeeff";
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 1.5;
+        ctx.shadowColor = "#88ccff"; ctx.shadowBlur = 14;
+        ctx.beginPath();
+        ctx.moveTo(0, -sz2);
+        ctx.lineTo(sz2 * 0.7, sz2 * 0.6);
+        ctx.lineTo(-sz2 * 0.7, sz2 * 0.6);
+        ctx.closePath();
+        ctx.fill(); ctx.stroke();
+        // Gleam highlight
+        ctx.globalAlpha = alpha * 0.6;
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.moveTo(-sz2 * 0.15, -sz2 * 0.5);
+        ctx.lineTo(sz2 * 0.05, -sz2 * 0.1);
+        ctx.lineTo(-sz2 * 0.3, -sz2 * 0.05);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+        break;
+      }
+
+      // ---- FROST ICE BURST: crystal shards on impact ----
+      case "frostBurst": {
+        const { x, y } = p2;
+        const alpha = 1 - t;
+        const rays2 = 8;
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = "#aaeeff";
+        ctx.lineWidth = 2;
+        ctx.shadowColor = "#88ccff"; ctx.shadowBlur = 10;
+        for (let ri = 0; ri < rays2; ri++) {
+          const angle = (ri / rays2) * Math.PI * 2 + t * 0.5;
+          const r4 = 20 + t * 40;
+          const r4i = 5 + t * 10;
+          ctx.beginPath();
+          ctx.moveTo(x + Math.cos(angle) * r4i, y + Math.sin(angle) * r4i);
+          ctx.lineTo(x + Math.cos(angle) * r4, y + Math.sin(angle) * r4);
+          ctx.stroke();
+          // Diamond tip
+          ctx.fillStyle = "#ddf4ff";
+          ctx.beginPath();
+          const tipX = x + Math.cos(angle) * r4;
+          const tipY = y + Math.sin(angle) * r4;
+          const perp = angle + Math.PI / 2;
+          const dw = 4 * (1 - t);
+          ctx.moveTo(tipX + Math.cos(angle) * dw * 1.5, tipY + Math.sin(angle) * dw * 1.5);
+          ctx.lineTo(tipX + Math.cos(perp) * dw, tipY + Math.sin(perp) * dw);
+          ctx.lineTo(tipX - Math.cos(angle) * dw, tipY - Math.sin(angle) * dw);
+          ctx.lineTo(tipX - Math.cos(perp) * dw, tipY - Math.sin(perp) * dw);
+          ctx.closePath(); ctx.fill();
+        }
+        break;
+      }
+
+      // ---- KRAKEN TENTACLE: animated bezier sweep ----
+      case "krakenTentacle": {
+        const { sx, sy, ex: ktex, ey: ktey, ctrl1x, ctrl1y, ctrl2x, ctrl2y, phase: ktPhase } = p2;
+        const progress = Math.min(1, t / 0.55);
+        const alpha = t < 0.6 ? 1 : 1 - (t - 0.6) / 0.4;
+        ctx.globalAlpha = alpha;
+        // Draw tentacle as thick bezier, taper at tip
+        const pts2 = 30;
+        const drawPts = Math.max(2, Math.floor(pts2 * progress));
+        for (let si = 0; si < drawPts - 1; si++) {
+          const st1 = si / pts2;
+          const st2 = (si + 1) / pts2;
+          const taper = 1 - si / pts2;
+          // Cubic bezier point
+          const bx3 = (x3t) => {
+            const mt = 1 - x3t;
+            return mt*mt*mt*sx + 3*mt*mt*x3t*ctrl1x + 3*mt*x3t*x3t*ctrl2x + x3t*x3t*x3t*ktex;
+          };
+          const by3 = (x3t) => {
+            const mt = 1 - x3t;
+            return mt*mt*mt*sy + 3*mt*mt*x3t*ctrl1y + 3*mt*x3t*x3t*ctrl2y + x3t*x3t*x3t*ktey;
+          };
+          const px1 = bx3(st1), py1 = by3(st1);
+          const px2 = bx3(st2), py2 = by3(st2);
+          const lw = 14 * taper * (1 + 0.15 * Math.sin(ktPhase + si * 0.4));
+          ctx.strokeStyle = "#1a5577";
+          ctx.lineWidth = lw + 4;
+          ctx.lineCap = "round";
+          ctx.shadowColor = "#226699"; ctx.shadowBlur = 8;
+          ctx.beginPath(); ctx.moveTo(px1, py1); ctx.lineTo(px2, py2); ctx.stroke();
+          // Teal highlight
+          ctx.strokeStyle = "#3399bb";
+          ctx.lineWidth = Math.max(1, lw * 0.35);
+          ctx.shadowBlur = 4;
+          ctx.beginPath(); ctx.moveTo(px1, py1); ctx.lineTo(px2, py2); ctx.stroke();
+          // Suction dots every ~3 segments
+          if (si % 3 === 0 && taper > 0.3) {
+            ctx.fillStyle = "#558899";
+            ctx.shadowBlur = 0;
+            ctx.beginPath(); ctx.arc(px1, py1, lw * 0.25, 0, Math.PI*2); ctx.fill();
+          }
+        }
+        break;
+      }
+
+      // ---- DEVIL QUEEN fireball: glowing arc ----
+      case "devilFireball": {
+        const { sx, sy, ex: dfx, ey: dfy } = p2;
+        const px4 = sx + (dfx - sx) * t;
+        const arcY4 = -60 * Math.sin(t * Math.PI);
+        const py4 = sy + (dfy - sy) * t + arcY4;
+        const alpha = t < 0.85 ? 1 : 1 - (t - 0.85) / 0.15;
+        const radius4 = 16 + Math.sin(t * Math.PI * 8) * 3;
+        ctx.globalAlpha = alpha;
+        // Outer flame corona
+        const fGrad = ctx.createRadialGradient(px4, py4, 0, px4, py4, radius4 * 2.2);
+        fGrad.addColorStop(0,   "rgba(255,200,50,0.9)");
+        fGrad.addColorStop(0.3, "rgba(255,100,0,0.7)");
+        fGrad.addColorStop(0.7, "rgba(200,30,0,0.3)");
+        fGrad.addColorStop(1,   "rgba(100,0,0,0)");
+        ctx.fillStyle = fGrad;
+        ctx.shadowColor = "#ff6600"; ctx.shadowBlur = 30;
+        ctx.beginPath(); ctx.arc(px4, py4, radius4 * 2.2, 0, Math.PI*2); ctx.fill();
+        // Bright core
+        const fcGrad = ctx.createRadialGradient(px4, py4, 0, px4, py4, radius4);
+        fcGrad.addColorStop(0,   "rgba(255,255,200,1)");
+        fcGrad.addColorStop(0.5, "rgba(255,160,0,0.9)");
+        fcGrad.addColorStop(1,   "rgba(255,60,0,0.5)");
+        ctx.fillStyle = fcGrad;
+        ctx.shadowColor = "#ffffff"; ctx.shadowBlur = 15;
+        ctx.beginPath(); ctx.arc(px4, py4, radius4, 0, Math.PI*2); ctx.fill();
+        break;
+      }
+
+      // ---- DEVIL QUEEN fire explosion ----
+      case "fireExplosion": {
+        const { x, y } = p2;
+        const r5 = t * 70;
+        const alpha = t < 0.3 ? t / 0.3 : 1 - (t - 0.3) / 0.7;
+        ctx.globalAlpha = alpha;
+        const expGrad = ctx.createRadialGradient(x, y, 0, x, y, r5);
+        expGrad.addColorStop(0,   "rgba(255,255,180,0.95)");
+        expGrad.addColorStop(0.25,"rgba(255,160,20,0.8)");
+        expGrad.addColorStop(0.6, "rgba(220,40,0,0.5)");
+        expGrad.addColorStop(1,   "rgba(100,0,0,0)");
+        ctx.fillStyle = expGrad;
+        ctx.shadowColor = "#ff4400"; ctx.shadowBlur = 30;
+        ctx.beginPath(); ctx.arc(x, y, r5, 0, Math.PI*2); ctx.fill();
+        break;
+      }
+
+      // ---- VIOLET charge orb ----
+      case "violetChargeOrb": {
+        const { bx, by } = p2;
+        const radius6 = t * 28;
+        ctx.globalAlpha = 0.9;
+        const orbGrad = ctx.createRadialGradient(bx, by, 0, bx, by, radius6);
+        orbGrad.addColorStop(0,   "rgba(255,180,255,1)");
+        orbGrad.addColorStop(0.4, "rgba(160,0,220,0.85)");
+        orbGrad.addColorStop(1,   "rgba(60,0,80,0)");
+        ctx.fillStyle = orbGrad;
+        ctx.shadowColor = "#aa00ff"; ctx.shadowBlur = 25;
+        ctx.beginPath(); ctx.arc(bx, by, radius6, 0, Math.PI*2); ctx.fill();
+        // Swirling ring
+        ctx.strokeStyle = "rgba(220,100,255,0.7)";
+        ctx.lineWidth = 2;
+        ctx.shadowBlur = 12;
+        ctx.beginPath();
+        ctx.arc(bx, by, radius6 * 1.3, t * Math.PI * 4, t * Math.PI * 4 + Math.PI * 1.5);
+        ctx.stroke();
+        break;
+      }
+
+      // ---- VIOLET energy beam with tendrils ----
+      case "violetBeam": {
+        const { sx, sy, ex: vbx, ey: vby } = p2;
+        const reach2 = Math.min(1, t / 0.45);
+        const alpha2 = t < 0.5 ? 1 : 1 - (t - 0.5) / 0.5;
+        const ex2 = sx + (vbx - sx) * reach2;
+        const ey2 = sy + (vby - sy) * reach2;
+        ctx.globalAlpha = alpha2;
+        // Core beam
+        ctx.strokeStyle = "#cc00ff";
+        ctx.lineWidth = 9;
+        ctx.lineCap = "round";
+        ctx.shadowColor = "#aa00ff"; ctx.shadowBlur = 22;
+        ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex2, ey2); ctx.stroke();
+        ctx.strokeStyle = "#ff88ff";
+        ctx.lineWidth = 3;
+        ctx.shadowBlur = 10;
+        ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex2, ey2); ctx.stroke();
+        // Spiral tendrils
+        const tendrils = 3;
+        ctx.strokeStyle = "rgba(140,0,200,0.6)";
+        ctx.lineWidth = 2;
+        ctx.shadowColor = "#8800cc"; ctx.shadowBlur = 8;
+        for (let ti = 0; ti < tendrils; ti++) {
+          const tOffset = ti * Math.PI * 2 / tendrils;
+          ctx.beginPath();
+          const tSteps = 20;
+          for (let ts = 0; ts <= Math.floor(tSteps * reach2); ts++) {
+            const frac = ts / tSteps;
+            const bx4 = sx + (vbx - sx) * frac;
+            const by4 = sy + (vby - sy) * frac;
+            const spiralR = 15 * Math.sin(frac * Math.PI);
+            const sAngle = frac * Math.PI * 6 + tOffset + t * 5;
+            const dx5 = Math.cos(sAngle) * spiralR;
+            const dy5 = Math.sin(sAngle) * spiralR;
+            // Offset perpendicular to beam direction
+            const bLen = Math.sqrt((vbx-sx)*(vbx-sx) + (vby-sy)*(vby-sy)) || 1;
+            const nx5 = -(vby-sy)/bLen, ny5 = (vbx-sx)/bLen;
+            if (ts === 0) ctx.moveTo(bx4 + nx5*dx5, by4 + ny5*dx5);
+            else ctx.lineTo(bx4 + nx5*dx5, by4 + ny5*dx5);
+          }
+          ctx.stroke();
+        }
+        break;
+      }
+
+      // ---- VIOLET dark implosion: particles rush inward ----
+      case "violetImplosion": {
+        const { x, y } = p2;
+        const r7 = t < 0.4 ? (0.4 - t) / 0.4 * 60 : (t - 0.4) / 0.6 * 80;
+        const alpha3 = t < 0.4 ? 1 : 1 - (t - 0.4) / 0.6;
+        ctx.globalAlpha = alpha3;
+        const impGrad = ctx.createRadialGradient(x, y, 0, x, y, r7);
+        if (t < 0.4) {
+          impGrad.addColorStop(0, "rgba(200,0,255,0.9)");
+          impGrad.addColorStop(0.5, "rgba(80,0,120,0.6)");
+          impGrad.addColorStop(1, "rgba(0,0,0,0)");
+        } else {
+          impGrad.addColorStop(0, "rgba(255,200,255,0.95)");
+          impGrad.addColorStop(0.3, "rgba(180,0,255,0.7)");
+          impGrad.addColorStop(0.8, "rgba(40,0,80,0.3)");
+          impGrad.addColorStop(1, "rgba(0,0,0,0)");
+        }
+        ctx.fillStyle = impGrad;
+        ctx.shadowColor = "#8800cc"; ctx.shadowBlur = 25;
+        ctx.beginPath(); ctx.arc(x, y, r7, 0, Math.PI*2); ctx.fill();
+        break;
+      }
+
+      // ---- VIOLET energy cracks ----
+      case "violetCracks": {
+        const { x, y, seed: cs } = p2;
+        const alpha4 = 1 - t;
+        ctx.globalAlpha = alpha4 * 0.75;
+        ctx.strokeStyle = "#cc44ff";
+        ctx.lineWidth = 1.5;
+        ctx.shadowColor = "#aa00ff"; ctx.shadowBlur = 8;
+        const rngC = (n) => { const v = Math.sin(cs + n * 127.1) * 43758.5453; return v - Math.floor(v); };
+        const cracks = 6;
+        for (let ci = 0; ci < cracks; ci++) {
+          const startAngle = rngC(ci) * Math.PI * 2;
+          const len = (40 + rngC(ci + 10) * 60) * (1 - t * 0.3);
+          ctx.beginPath();
+          let cx8 = x, cy8 = y;
+          ctx.moveTo(cx8, cy8);
+          const segs = 4;
+          for (let sg = 0; sg < segs; sg++) {
+            const segLen = len / segs;
+            const angle8 = startAngle + rngC(ci * 10 + sg) * 0.8 - 0.4;
+            cx8 += Math.cos(angle8) * segLen;
+            cy8 += Math.sin(angle8) * segLen;
+            ctx.lineTo(cx8, cy8);
+          }
+          ctx.stroke();
+        }
+        break;
+      }
+
+    }
+    ctx.restore();
+  }
 }
 
 // ============================================================
@@ -1771,145 +2310,259 @@ function drawKrakenLord(x, y, scale) {
 // Particles array is shared (state.particles -> global particles[])
 
 function spawnLightBeam(ax, ay, bx2, by2) {
-  // Stream of white/gold particles from angel to boss
-  const dx = bx2 - ax, dy = by2 - ay;
-  const len = Math.sqrt(dx*dx+dy*dy);
-  const steps = Math.floor(len / 8);
-  for (let i=0; i<steps; i++) {
-    const t = i/steps;
-    const ox = (Math.random()-0.5)*8;
-    const oy = (Math.random()-0.5)*8;
+  // EPIC: Glowing beam from angel to boss with expanding reach
+  addEffect("lightBeam", { ax, ay, bx: bx2, by: by2 }, 600);
+  // Sparkle particles scatter from impact
+  for (let i = 0; i < 18; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const spd = 1 + Math.random() * 3;
     particles.push({
-      x: ax + dx*t + ox, y: ay + dy*t + oy,
-      vx:(Math.random()-0.5)*0.8, vy:(Math.random()-0.5)*0.8,
-      life:1, decay:0.06+Math.random()*0.04,
-      r:2+Math.random()*2,
-      color:Math.random()<0.6 ? "#ffffff" : "#ffd700",
-      alpha:1
+      x: bx2 + (Math.random()-0.5)*20, y: by2 + (Math.random()-0.5)*20,
+      vx: Math.cos(angle)*spd, vy: Math.sin(angle)*spd - 0.5,
+      life:1, decay:0.04+Math.random()*0.03,
+      r:2+Math.random()*3,
+      color: Math.random()<0.6 ? "#ffffff" : "#aaddff",
+      alpha:1, glow:"#aaddff"
     });
   }
+  // Brief white flash on boss
+  addEffect("screenTint", { color: "#aaddff" }, 400);
 }
 
 function spawnHolySlash(ax, ay, bx2, by2) {
-  // Golden crescent arc with sparkles
-  const midX = (ax+bx2)*0.5 + (Math.random()-0.5)*40;
-  const midY = Math.min(ay,by2) - 50;
-  for (let i=0; i<40; i++) {
-    const t = i/40;
-    // Quadratic bezier
-    const qx = (1-t)*(1-t)*ax + 2*(1-t)*t*midX + t*t*bx2;
-    const qy = (1-t)*(1-t)*ay + 2*(1-t)*t*midY + t*t*by2;
-    const color = Math.random()<0.5 ? "#ffd700" : "#ffffaa";
+  // EPIC: Visible golden crescent arc that sweeps to boss
+  addEffect("holySlash", { ax, ay, bx: bx2, by: by2 }, 700);
+  // Trail sparkles along the arc
+  const midX = (ax+bx2)*0.5;
+  const midY = Math.min(ay,by2) - 70;
+  for (let i = 0; i < 30; i++) {
+    const t2 = i / 30;
+    const qx = (1-t2)*(1-t2)*ax + 2*(1-t2)*t2*midX + t2*t2*bx2;
+    const qy = (1-t2)*(1-t2)*ay + 2*(1-t2)*t2*midY + t2*t2*by2;
     particles.push({
-      x:qx+(Math.random()-0.5)*12, y:qy+(Math.random()-0.5)*12,
-      vx:(Math.random()-0.5)*2, vy:-Math.random()*2,
-      life:1, decay:0.04+Math.random()*0.03,
-      r:2+Math.random()*3, color, alpha:1
+      x: qx+(Math.random()-0.5)*10, y: qy+(Math.random()-0.5)*10,
+      vx:(Math.random()-0.5)*1.5, vy:-Math.random()*1.5,
+      life:1, decay:0.035+Math.random()*0.03,
+      r:2+Math.random()*3,
+      color: Math.random()<0.6 ? "#ffd700" : "#ffffaa",
+      alpha:1, glow:"#ffd700"
     });
   }
+  // Starburst of golden rays at impact
+  addEffect("starBurst", { x: bx2, y: by2, color: "#ffd700" }, 500);
+  // Golden screen tint flash
+  addEffect("screenTint", { color: "#ffcc00" }, 350);
 }
 
 function spawnDivineStrike(bx2, by2) {
-  // Golden column from top to boss
-  for (let i=0; i<80; i++) {
-    const col = Math.random()<0.7 ? "#ffd700" : (Math.random()<0.5 ? "#ffffff" : "#ffaa00");
-    particles.push({
-      x: bx2 + (Math.random()-0.5)*40,
-      y: Math.random()*by2,
-      vx:(Math.random()-0.5)*1.5, vy:Math.random()*3+1,
-      life:1, decay:0.03+Math.random()*0.02,
-      r:2+Math.random()*4, color:col, alpha:1
-    });
+  // EPIC DIVINE STRIKE — full spectacle
+  // Screen dims for drama
+  addEffect("screenDim", {}, 400);
+  // Massive pulsing golden column from sky
+  addEffect("divineBeam", { bx: bx2, by: by2 }, 900);
+  // Multiple lightning bolts crackle around the column
+  for (let li = 0; li < 5; li++) {
+    setTimeout(function() {
+      addEffect("divineLightning", { bx: bx2, by: by2, seed: Math.random() * 100 }, 300);
+    }, li * 80);
   }
-  // Explosion burst at boss
-  spawnParticleBurst(bx2, by2, 40, "#ffd700", 8, 5);
-  spawnParticleBurst(bx2, by2, 20, "#ffffff", 6, 3);
+  // Afterglow lingering particles — gold, white, orange
+  for (let i = 0; i < 90; i++) {
+    const col = Math.random()<0.6 ? "#ffd700" : (Math.random()<0.5 ? "#ffffff" : "#ffaa00");
+    const delay = Math.random() * 300;
+    setTimeout(function() {
+      particles.push({
+        x: bx2 + (Math.random()-0.5)*80,
+        y: by2 + (Math.random()-0.5)*60,
+        vx:(Math.random()-0.5)*3, vy:-(Math.random()*4+1),
+        life:1, decay:0.015+Math.random()*0.015,
+        r:2+Math.random()*5, color:col, alpha:1, glow:col
+      });
+    }, delay);
+  }
+  // Big explosion burst at impact
+  spawnParticleBurst(bx2, by2, 50, "#ffd700", 10, 6);
+  spawnParticleBurst(bx2, by2, 25, "#ffffff", 7, 4);
+  spawnParticleBurst(bx2, by2, 20, "#ffaa00", 5, 3);
+  // Expanding shockwave ring
+  addEffect("shockwave", { x: bx2, y: by2, color: "#ffd700" }, 700);
+  // Golden tint flash
+  addEffect("screenTint", { color: "#ffdd00" }, 500);
 }
 
 function spawnBossAttack_ShadowWolf(ax, ay, bx2, by2) {
-  // Dark purple streak across screen + jaw snap around angel
-  for (let i=0; i<30; i++) {
-    const t = i/30;
-    particles.push({
-      x: bx2 + (ax-bx2)*t + (Math.random()-0.5)*20,
-      y: by2 + (ay-by2)*t + (Math.random()-0.5)*20,
-      vx:(Math.random()-0.5)*3, vy:(Math.random()-0.5)*3,
-      life:1, decay:0.06+Math.random()*0.04,
-      r:3+Math.random()*4,
-      color:Math.random()<0.6 ? "#6600cc" : "#aa00ff", alpha:1
-    });
+  // EPIC: Dark swoosh arc + snapping jaws + smoke
+  addEffect("shadowSwoosh", { ax: bx2, ay: by2, bx: ax, by: ay }, 600);
+  // Jaw shapes snap shut at angel position
+  addEffect("shadowJaw", { cx: ax + 24, cy: ay + 60, flip: false }, 550);
+  // Purple-black smoke particles lingering slowly
+  for (let i = 0; i < 35; i++) {
+    const delay = Math.random() * 200;
+    setTimeout(function() {
+      particles.push({
+        x: ax + (Math.random()-0.5)*60, y: ay + (Math.random()-0.5)*50,
+        vx:(Math.random()-0.5)*0.8, vy:-(0.3+Math.random()*0.7),
+        life:1, decay:0.012+Math.random()*0.012,
+        r:5+Math.random()*8,
+        color: Math.random()<0.6 ? "#330044" : "#6600aa",
+        alpha:0.7, glow:"#6600cc"
+      });
+    }, delay);
   }
-  spawnParticleBurst(ax, ay, 20, "#880088", 5, 4);
+  spawnParticleBurst(ax, ay, 22, "#880088", 5, 4);
+  // Purple screen tint
+  addEffect("screenTint", { color: "#440066" }, 500);
 }
 
 function spawnBossAttack_FrostWitch(ax, ay, bx2, by2) {
-  // 3-5 blue-white ice triangle shapes
+  // EPIC: Actual triangle ice shards flying at angel
   const count = 3 + Math.floor(Math.random()*3);
-  for (let i=0; i<count; i++) {
-    const delay = i * 6;
-    const oy = (Math.random()-0.5)*60;
-    for (let j=0; j<12; j++) {
-      particles.push({
-        x: bx2, y: by2 + oy + (Math.random()-0.5)*20,
-        vx: -5-Math.random()*3, vy: (Math.random()-0.5)*1.5,
-        life: 1, decay: 0.025+Math.random()*0.02,
-        r: 3+Math.random()*3,
-        color: Math.random()<0.5 ? "#aaeeff" : "#88ccff", alpha:1,
-        _delay: delay
-      });
+  for (let i = 0; i < count; i++) {
+    const oy = (Math.random()-0.5)*70;
+    const rot = Math.random() * Math.PI * 2;
+    addEffect("frostShard", {
+      sx: bx2, sy: by2 + oy,
+      ex: ax + (Math.random()-0.5)*30, ey: ay + oy * 0.3,
+      rot
+    }, 450 + i * 60);
+    // Frost trail particles behind each shard
+    for (let j = 0; j < 6; j++) {
+      const tDelay = j * 50 + i * 60;
+      setTimeout(function() {
+        const prog = j / 6;
+        particles.push({
+          x: bx2 + (ax - bx2) * prog + (Math.random()-0.5)*15,
+          y: by2 + oy + (ay - by2) * prog + (Math.random()-0.5)*10,
+          vx:(Math.random()-0.5)*1, vy:-(0.2+Math.random()*0.5),
+          life:1, decay:0.04+Math.random()*0.03,
+          r:2+Math.random()*2.5,
+          color: Math.random()<0.5 ? "#aaeeff" : "#cceeff",
+          alpha:0.8, glow:"#88ccff"
+        });
+      }, tDelay);
     }
   }
-  spawnParticleBurst(ax, ay, 20, "#88ccff", 4, 3);
+  // Ice crystal burst on impact
+  addEffect("frostBurst", { x: ax, y: ay }, 500);
+  spawnParticleBurst(ax, ay, 18, "#88ccff", 4, 3);
+  // Blue tint screen
+  addEffect("screenTint", { color: "#0044aa" }, 450);
 }
 
 function spawnBossAttack_KrakenLord(ax, ay, bx2, by2) {
-  // Thick sweep + water splash
-  for (let i=0; i<35; i++) {
-    const t = i/35;
+  // EPIC: Animated thick tentacle sweeping across + water splash
+  // Bezier control points for dramatic tentacle arc
+  const ctrl1x = bx2 + (ax - bx2) * 0.25 + (Math.random()-0.5)*80;
+  const ctrl1y = Math.min(ay, by2) - 80 - Math.random()*60;
+  const ctrl2x = bx2 + (ax - bx2) * 0.75 + (Math.random()-0.5)*80;
+  const ctrl2y = ay - 40;
+  const phase = Math.random() * Math.PI * 2;
+  addEffect("krakenTentacle", {
+    sx: bx2, sy: by2,
+    ex: ax, ey: ay,
+    ctrl1x, ctrl1y, ctrl2x, ctrl2y, phase
+  }, 750);
+  // Water splash circles on impact
+  for (let i = 0; i < 20; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const spd = 2 + Math.random() * 5;
     particles.push({
-      x: bx2 + (ax-bx2)*t + Math.sin(t*Math.PI)*60 * (Math.random()>0.5?1:-1),
-      y: by2 + (ay-by2)*t + (Math.random()-0.5)*30,
-      vx:(Math.random()-0.5)*2, vy:-Math.random()*3,
+      x: ax + (Math.random()-0.5)*30, y: ay,
+      vx: Math.cos(angle)*spd, vy: Math.sin(angle)*spd - 2,
       life:1, decay:0.04+Math.random()*0.03,
-      r:4+Math.random()*5,
-      color:Math.random()<0.6 ? "#2266aa" : "#44aaff", alpha:1
+      r:3+Math.random()*5,
+      color: Math.random()<0.6 ? "#44aaff" : "#aaddff",
+      alpha:0.8, glow:"#44aaff"
     });
   }
-  spawnParticleBurst(ax, ay, 25, "#44aaff", 5, 4);
+  spawnParticleBurst(ax, ay, 25, "#44aaff", 6, 4);
+  // Dark blue overlay
+  addEffect("screenTint", { color: "#002244" }, 500);
 }
 
 function spawnBossAttack_DevilQueen(ax, ay, bx2, by2) {
-  // Fireball arc from boss to angel
-  for (let i=0; i<50; i++) {
-    const t = i/50;
-    const arcY = -60*Math.sin(t*Math.PI);
-    particles.push({
-      x: bx2 + (ax-bx2)*t + (Math.random()-0.5)*18,
-      y: by2 + (ay-by2)*t + arcY + (Math.random()-0.5)*18,
-      vx:(Math.random()-0.5)*2, vy:Math.random()*2-1,
-      life:1, decay:0.04+Math.random()*0.03,
-      r:3+Math.random()*4,
-      color:Math.random()<0.5 ? "#ff4400" : "#ff8800", alpha:1
-    });
+  // EPIC: Glowing fireball arc + fire explosion + smoke
+  addEffect("devilFireball", { sx: bx2, sy: by2, ex: ax, ey: ay }, 650);
+  // Fire trail particles drifting upward as fireball travels
+  for (let i = 0; i < 40; i++) {
+    const delay = i * 12;
+    setTimeout(function() {
+      const prog = delay / 480;
+      const arcY = -60 * Math.sin(prog * Math.PI);
+      particles.push({
+        x: bx2 + (ax - bx2) * prog + (Math.random()-0.5)*20,
+        y: by2 + (ay - by2) * prog + arcY + (Math.random()-0.5)*15,
+        vx:(Math.random()-0.5)*1.5, vy:-(0.5+Math.random()*1.5),
+        life:1, decay:0.025+Math.random()*0.02,
+        r:2+Math.random()*4,
+        color: Math.random()<0.5 ? "#ff4400" : "#ff8800",
+        alpha:0.9, glow:"#ff6600"
+      });
+    }, delay);
   }
-  spawnParticleBurst(ax, ay+20, 30, "#ff6600", 6, 4);
+  // Fire explosion at angel on impact
+  setTimeout(function() {
+    addEffect("fireExplosion", { x: ax, y: ay }, 600);
+    // Ember particles float up post-impact
+    for (let i = 0; i < 25; i++) {
+      particles.push({
+        x: ax + (Math.random()-0.5)*50, y: ay + (Math.random()-0.5)*30,
+        vx:(Math.random()-0.5)*2, vy:-(1+Math.random()*3),
+        life:1, decay:0.015+Math.random()*0.015,
+        r:2+Math.random()*3,
+        color: Math.random()<0.4 ? "#ff6600" : (Math.random()<0.5 ? "#ffaa00" : "#ff2200"),
+        alpha:1, glow:"#ff4400"
+      });
+    }
+    // Smoke particles (dark grey, slow-rising)
+    for (let i = 0; i < 15; i++) {
+      particles.push({
+        x: ax + (Math.random()-0.5)*60, y: ay + (Math.random()-0.5)*40,
+        vx:(Math.random()-0.5)*0.5, vy:-(0.3+Math.random()*0.7),
+        life:1, decay:0.008+Math.random()*0.008,
+        r:6+Math.random()*10,
+        color:"#333333", alpha:0.5
+      });
+    }
+  }, 600);
+  spawnParticleBurst(ax, ay + 20, 30, "#ff6600", 6, 4);
+  // Orange-red screen tint
+  addEffect("screenTint", { color: "#880022" }, 600);
 }
 
 function spawnBossAttack_VioletAvenger(ax, ay, bx2, by2) {
-  // Purple-black orb beam with spiral particles
-  for (let i=0; i<60; i++) {
-    const t = i/60;
-    const spiral = Math.sin(t*Math.PI*8)*15;
-    particles.push({
-      x: bx2 + (ax-bx2)*t + Math.cos(t*Math.PI*8)*spiral*0.5,
-      y: by2 + (ay-by2)*t + Math.sin(t*Math.PI*8)*spiral,
-      vx:(Math.random()-0.5)*2, vy:(Math.random()-0.5)*2,
-      life:1, decay:0.04+Math.random()*0.03,
-      r:2+Math.random()*3,
-      color:Math.random()<0.5 ? "#8800cc" : "#ff00aa", alpha:1
-    });
-  }
-  spawnParticleBurst(ax, ay, 25, "#aa00ff", 6, 4);
+  // EPIC: Charge orb forms, then fires beam with spiraling tendrils, dark implosion
+  // Brief screen dim as charge-up
+  addEffect("screenDim", {}, 350);
+  // Growing charge orb at boss
+  addEffect("violetChargeOrb", { bx: bx2, by: by2 }, 350);
+  // After charge, fire the beam
+  setTimeout(function() {
+    addEffect("violetBeam", { sx: bx2, sy: by2, ex: ax, ey: ay }, 600);
+    // Dark implosion + explosion at angel
+    setTimeout(function() {
+      addEffect("violetImplosion", { x: ax, y: ay }, 700);
+      // Energy cracks in the air
+      addEffect("violetCracks", { x: ax, y: ay, seed: Math.random() * 50 }, 600);
+      // Burst particles rushing inward then outward
+      spawnParticleBurst(ax, ay, 28, "#aa00ff", 6, 4);
+      for (let i = 0; i < 12; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const r9 = 40 + Math.random() * 50;
+        particles.push({
+          x: ax + Math.cos(angle) * r9, y: ay + Math.sin(angle) * r9,
+          vx: -Math.cos(angle) * (2 + Math.random()*3),
+          vy: -Math.sin(angle) * (2 + Math.random()*3),
+          life:1, decay:0.04+Math.random()*0.03,
+          r:3+Math.random()*4,
+          color: Math.random()<0.5 ? "#8800cc" : "#ff00aa",
+          alpha:1, glow:"#aa00ff"
+        });
+      }
+    }, 450);
+  }, 350);
+  // Purple tint
+  addEffect("screenTint", { color: "#330044" }, 700);
 }
 
 function spawnBossAttack(level, ax, ay, bx2, by2) {
@@ -3088,6 +3741,7 @@ function renderBattle() {
 
   updateParticles();
   drawParticles();
+  renderEffects();
 }
 
 function renderVictory() {
