@@ -376,17 +376,17 @@ html, body {
         <button class="sp-btn" id="sp-btn-0">
           <div class="sp-icon">🔥</div>
           <div class="sp-name">Wings of Fire</div>
-          <div class="sp-desc">Next attack deals double damage</div>
+          <div class="sp-desc">5 damage + fire explosion</div>
         </button>
         <button class="sp-btn" id="sp-btn-1">
           <div class="sp-icon">⚡</div>
           <div class="sp-name">Holy Lightning</div>
-          <div class="sp-desc">+1 hit &amp; heal angel 1 HP if correct</div>
+          <div class="sp-desc">3 damage + heal angel 2 HP</div>
         </button>
         <button class="sp-btn" id="sp-btn-2">
           <div class="sp-icon">🛡️</div>
           <div class="sp-name">Divine Shield</div>
-          <div class="sp-desc">Block the next boss attack</div>
+          <div class="sp-desc">Block next 2 boss attacks</div>
         </button>
       </div>
     </div>
@@ -454,16 +454,23 @@ const SPEED_LABELS = [
   {thresh:99,pts:50,  label:"CORRECT",   color:"#aaaaff"}
 ];
 const STREAK_MULT = [[3,1.5],[5,2.0],[7,2.5]];
-const BOSS_HP   = [4,5,6,7,9];
-const ANGEL_HP  = [5,5,4,4,4];
+const BOSS_HP   = [15,20,25,30,40];
+const ANGEL_HP  = [12,12,10,10,10];
+const BATTLE_CONFIG = [
+  { bossAutoInterval: 4.5, questionInterval: 6.0 },  // L1
+  { bossAutoInterval: 4.0, questionInterval: 6.0 },  // L2
+  { bossAutoInterval: 3.8, questionInterval: 5.5 },  // L3
+  { bossAutoInterval: 3.5, questionInterval: 5.5 },  // L4
+  { bossAutoInterval: 3.0, questionInterval: 5.0 },  // L5
+];
 const LEVEL_MULTIPLIER = [1.0,1.2,1.4,1.6,2.0];
 
 // Difficulty modes
 var gameMode = "normal"; // easy | normal | hard
 const MODE_CONFIG = {
-  easy:   { trainTimer: 15, battleTimerAdj: 0, angelHPAdj: 1, bossHPAdj: 0, hints: true },
+  easy:   { trainTimer: 15, battleTimerAdj: 0, angelHPAdj: 2, bossHPAdj: 0, hints: true },
   normal: { trainTimer: 15, battleTimerAdj: 0, angelHPAdj: 0, bossHPAdj: 0, hints: false },
-  hard:   { trainTimer: 10, battleTimerAdj: -2, angelHPAdj: 0, bossHPAdj: 1, hints: false },
+  hard:   { trainTimer: 10, battleTimerAdj: -2, angelHPAdj: 0, bossHPAdj: 3, hints: false },
 };
 const BATTLE_SPEED = [
   {thresh:3, pts:300, label:"DIVINE STRIKE", hits:3, color:"#ffd700"},
@@ -538,6 +545,15 @@ var state = window.state = {
   frostSparkles: [],
   // boss entrance per-type
   entranceTick: 0,
+  // auto-attack timers
+  angelAutoTimer: null,
+  bossAutoTimer: null,
+  questionTimer: null,
+  shieldCharges: 0,       // blocks remaining from Divine Shield
+  questionPending: false, // true while a question is showing
+  battleTotalAsked: 0,    // total questions asked (for stats)
+  lastShotTime: 0,        // timestamp of last player shot (rate-limit)
+  totalShotsFired: 0,     // total shots fired by player this battle
 };
 
 // ============================================================
@@ -2411,6 +2427,20 @@ function generateBattleQuestions(table, count, wrongAnswers) {
   return result;
 }
 
+// Returns the next battle question from the queue; auto-refills from table when exhausted
+function nextBattleQuestionFromPool() {
+  const lvl = state.currentLevel;
+  const cfg = LEVEL_CONFIG[lvl];
+  if (state.battleQuestions.length === 0) {
+    // Refill with a shuffled batch of the full table
+    const batch = [];
+    for (let b = 1; b <= 10; b++) batch.push({ a: cfg.table, b: b });
+    batch.sort(function() { return Math.random() - 0.5; });
+    state.battleQuestions = batch;
+  }
+  return state.battleQuestions.shift();
+}
+
 // ============================================================
 // TRAINING TIMER
 // ============================================================
@@ -2513,8 +2543,8 @@ function startBattleTimer() {
       else if (s > 0) sfxTimerTick();
     }
     // Easy mode hints in battle too
-    if (MODE_CONFIG[gameMode].hints && state.battleQuestions[state.battleQIndex]) {
-      var bq = state.battleQuestions[state.battleQIndex];
+    if (MODE_CONFIG[gameMode].hints && state.currentQ) {
+      var bq = state.currentQ;
       var correct = bq.a * bq.b;
       if (fraction < 0.66 && state.hintsGiven === 0) {
         eliminateOneWrong(correct);
@@ -2535,6 +2565,59 @@ function startBattleTimer() {
 
 function stopBattleTimer() {
   if (battleTimerInterval) { clearInterval(battleTimerInterval); battleTimerInterval = null; }
+}
+
+function clearBattleTimers() {
+  stopBattleTimer();
+  if (state.bossAutoTimer)  { clearInterval(state.bossAutoTimer);  state.bossAutoTimer  = null; }
+  if (state.questionTimer)  { clearTimeout(state.questionTimer);   state.questionTimer  = null; }
+  removeBattleEventListeners();
+}
+
+// Shooting event listeners — stored so we can remove them on battle end
+var _battleKeyHandler      = null;
+var _battleMouseHandler    = null;
+var _battleTouchHandler    = null;
+
+function removeBattleEventListeners() {
+  if (_battleKeyHandler)   { document.removeEventListener("keydown",     _battleKeyHandler);   _battleKeyHandler   = null; }
+  if (_battleMouseHandler) { canvas.removeEventListener("mousedown",     _battleMouseHandler); _battleMouseHandler = null; }
+  if (_battleTouchHandler) { canvas.removeEventListener("touchstart",    _battleTouchHandler); _battleTouchHandler = null; }
+}
+
+// Player shoots: fires Light Beam at boss, rate-limited to max 2/sec
+function doPlayerShoot() {
+  if (state.phase !== "battle") return;
+  if (state.bossDefeated) return;
+  if (document.getElementById("superpower-overlay").style.display === "flex") return;
+  if (state.bossEntrancePhase < 2) return;
+
+  const now = Date.now();
+  if (now - state.lastShotTime < 500) return; // max 2 shots/sec
+  state.lastShotTime = now;
+  state.totalShotsFired++;
+
+  const isKrakenP = (state.currentLevel === 2);
+  const bossCXP = state.bossX + (isKrakenP ? 96*1.4 : 48*3)*0.5;
+  const bossCYP = state.bossY + (isKrakenP ? 128*1.4 : 64*3)*0.5;
+
+  sfxAttackHit();
+  spawnLightBeam(
+    state.angelX + 48*3, state.angelY + 64*1.5,
+    state.bossX, state.bossY + 64*1.5
+  );
+  state.bossFlash = 4;
+  state.bossKnockback = 6;
+  state.bossHP -= 1;
+  state.levelScore += 30;
+  spawnFloatText("-1", bossCXP - 20, state.bossY + 20, "#aaddff", 16);
+  updateBattleHUD();
+
+  if (state.bossHP <= 0) {
+    state.bossHP = 0;
+    updateBattleHUD();
+    setTimeout(function() { battleVictory(); }, 800);
+  }
 }
 
 function drawBattleTimerArc(fraction) {
@@ -3125,7 +3208,7 @@ function updateProgressDots() {
 function showTitle() {
   state.phase = "title";
   stopTimer();
-  stopBattleTimer();
+  clearBattleTimers();
   hideAllOverlays();
   document.getElementById("title-screen").style.display = "flex";
   state.bossDefeated = false;
@@ -3142,7 +3225,7 @@ function showLevelIntro(levelIdx) {
   state.phase = "level-intro";
   state.currentLevel = levelIdx;
   const cfg = LEVEL_CONFIG[levelIdx];
-  stopBattleTimer();
+  clearBattleTimers();
   hideAllOverlays();
   document.getElementById("intro-screen").style.display = "flex";
   state.bossDefeated = false;
@@ -3192,7 +3275,7 @@ function startTraining(levelIdx) {
 
   state.questionQueue = generateQuestionQueue(levelIdx);
 
-  stopBattleTimer();
+  clearBattleTimers();
   hideAllOverlays();
   // Clear battle mode from answer buttons (leftover from previous level's battle)
   for (let i = 0; i < 4; i++) {
@@ -3368,11 +3451,21 @@ function startBattle() {
   state.bossInitialHP = BOSS_HP[lvl] + modeHP.bossHPAdj;
   state.angelHP = ANGEL_HP[lvl] + modeHP.angelHPAdj;
   state.angelHPMax = ANGEL_HP[lvl] + modeHP.angelHPAdj;
-  state.battleQuestions = generateBattleQuestions(cfg.table, cfg.battleQ, state.wrongAnswers);
+
+  // Seed question pool: wrong answers from training first, then full table for refill
+  const wrongPool = state.wrongAnswers.slice().sort(function() { return Math.random()-0.5; });
+  const tablePool = [];
+  for (let b = 1; b <= 10; b++) tablePool.push({ a: cfg.table, b: b });
+  tablePool.sort(function() { return Math.random()-0.5; });
+  // Combine: wrong answers first, rest from table
+  state.battleQuestions = wrongPool.concat(tablePool);
+
   state.battleQIndex = 0;
-  state.battleQCount = cfg.battleQ;
+  state.battleQCount = 0;          // no fixed count — fight until HP=0
+  state.battleTotalAsked = 0;
   state.activeSuperPower = null;
   state.hasShield = false;
+  state.shieldCharges = 0;
   state.battleAnswerLocked = false;
   state.battleWrongCount = 0;
   state.battleCorrectCount = 0;
@@ -3382,13 +3475,16 @@ function startBattle() {
   state.angelKnockback = 0; state.bossKnockback = 0;
   state.angelFlash = 0; state.bossFlash = 0;
   state.angelRise = 0;
+  state.lastShotTime = 0;
+  state.totalShotsFired = 0;
   state.frostSparkles = [];
   state.seraphimSparkles = [];
+  state.questionPending = false;
 
   // Perfect training: no wrong answers
   state.perfectTraining = (state.wrongAnswers.length === 0);
 
-  // Compute avg answer time from training (stored in state.trainingTimes if available)
+  // Compute avg answer time from training
   state.trainingAvgTime = state.trainingTimes && state.trainingTimes.length ?
     state.trainingTimes.reduce(function(a,b){return a+b;},0)/state.trainingTimes.length : 99;
 
@@ -3397,22 +3493,20 @@ function startBattle() {
   const bossScale = isKraken ? 1.4 : 3;
   const bossW = isKraken ? 96*bossScale : 48*bossScale;
   const bossH = isKraken ? 128*bossScale : 64*bossScale;
-  const angelScale = 3;
   state.angelX = 50;
   state.angelY = H*0.28;
   state.bossX = W - bossW - 40;
   state.bossY = H*0.28;
-  state.bossEntranceX = W + bossW; // start off-screen right
-  state.bossEntrancePhase = 0; // 0=entering, 1=arrived
+  state.bossEntranceX = W + bossW;
+  state.bossEntrancePhase = 0;
 
   hideAllOverlays();
   document.getElementById("battle-hud").style.display = "flex";
   document.getElementById("battle-timer-wrap").style.display = "block";
-  document.getElementById("power-bar-wrap").style.display = "block";
-  updatePowerBarDOM();
+  // Power bar is for training only; hide it during battle
+  document.getElementById("power-bar-wrap").style.display = "none";
   document.getElementById("battle-status").style.display = "block";
 
-  // Update HUD labels
   document.getElementById("battle-angel-name").textContent = STAGE_NAMES[state.angelStage];
   document.getElementById("battle-boss-name").textContent = cfg.boss;
   updateBattleHUD();
@@ -3420,16 +3514,48 @@ function startBattle() {
   if (!bgCache[lvl]) bgCache[lvl] = createBgCanvas(lvl);
   resetAmbients(lvl);
 
-  // Entrance sequence: boss enters with unique animation, then start first question
   sfxBattleStart();
   triggerFlash("rgba(0,0,0,0.8)", 400);
   state.entranceTick = 0;
   state.battleAnswerLocked = true;
+
   setTimeout(function() {
-    state.bossEntrancePhase = 1; // entrance animation begins
+    state.bossEntrancePhase = 1;
     setTimeout(function() {
-      state.bossEntrancePhase = 2; // arrived
-      showBattleQuestion();
+      state.bossEntrancePhase = 2;
+
+      // Start battle timers
+      const bc = BATTLE_CONFIG[lvl];
+
+      // Boss auto-attacks at fixed interval
+      state.bossAutoTimer = setInterval(function() {
+        if (state.phase !== "battle") return;
+        doBossAutoAttack();
+      }, bc.bossAutoInterval * 1000);
+
+      // Questions appear periodically (independent of boss attacks)
+      state.questionTimer = setTimeout(function() {
+        if (state.phase !== "battle") return;
+        showBattleQuestion();
+      }, bc.questionInterval * 1000);
+
+      // Register player shooting listeners
+      removeBattleEventListeners(); // safety: clear any leftover
+      _battleKeyHandler = function(e) {
+        // Any key fires a shot (don't intercept if super power overlay is open)
+        if (document.getElementById("superpower-overlay").style.display === "flex") return;
+        doPlayerShoot();
+      };
+      _battleMouseHandler = function(e) {
+        doPlayerShoot();
+      };
+      _battleTouchHandler = function(e) {
+        doPlayerShoot();
+      };
+      document.addEventListener("keydown",  _battleKeyHandler);
+      canvas.addEventListener("mousedown",  _battleMouseHandler);
+      canvas.addEventListener("touchstart", _battleTouchHandler, { passive: true });
+
     }, 1500);
   }, 600);
 }
@@ -3444,27 +3570,17 @@ function updateBattleHUD() {
   document.getElementById("angel-hp-max").textContent = state.angelHPMax;
   document.getElementById("boss-hp-max").textContent  = state.bossHPMax;
   document.getElementById("battle-status").textContent =
-    "Q " + (state.battleQIndex+1) + "/" + state.battleQCount + "  |  Score: " + (state.totalScore+state.levelScore).toLocaleString();
+    "Shots: " + state.totalShotsFired + "  |  Score: " + (state.totalScore+state.levelScore).toLocaleString();
 }
 
 function showBattleQuestion() {
   if (state.phase !== "battle") return;
+  if (state.questionPending) return;  // already showing a question
 
-  // Check if every 3rd question → offer superpower (before 3rd, 6th, 9th)
-  if (state.battleQIndex > 0 && state.battleQIndex % 3 === 0 && !state.activeSuperPower && !state.hasShield) {
-    showSuperpowerChoice();
-    return;
-  }
-
-  if (state.battleQIndex >= state.battleQCount) {
-    // All questions done — boss still alive, angel wins by running out of questions?
-    // Give boss 0 HP (shouldn't reach here normally) → victory
-    battleVictory();
-    return;
-  }
-
-  const q = state.battleQuestions[state.battleQIndex];
+  const q = nextBattleQuestionFromPool();
   state.currentQ = q;
+  state.battleTotalAsked++;
+  state.questionPending = true;
   state.battleAnswerLocked = false;
 
   document.getElementById("question-area").style.display = "block";
@@ -3483,9 +3599,74 @@ function showBattleQuestion() {
   startBattleTimer();
 }
 
+// Called after battle question resolves; waits then spawns next question
+function scheduleNextQuestion() {
+  if (state.phase !== "battle") return;
+  if (state.questionTimer) { clearTimeout(state.questionTimer); state.questionTimer = null; }
+  // Pause ~2s after resolving, then wait the full questionInterval before showing next question
+  const bc = BATTLE_CONFIG[state.currentLevel];
+  const delay = Math.max(2000, bc.questionInterval * 1000);
+  state.questionTimer = setTimeout(function() {
+    state.questionTimer = null;
+    if (state.phase !== "battle") return;
+    showBattleQuestion();
+  }, delay);
+}
+
+
+// Boss fires its themed attack automatically — 1 damage
+function doBossAutoAttack() {
+  if (state.phase !== "battle") return;
+  const lvl = state.currentLevel;
+  const isKrakenB = (lvl === 2);
+  const bossWB = isKrakenB ? 96*1.4 : 48*3;
+
+  if (state.shieldCharges > 0) {
+    state.shieldCharges--;
+    if (state.shieldCharges === 0) {
+      state.hasShield = false;
+      updateActivePowerDisplay();
+    }
+    const shCX = state.angelX + 48*3*0.5;
+    const shCY = state.angelY + 64*3*0.5;
+    const shR  = 64*3*0.65;
+    triggerFlash("rgba(255,215,0,0.7)", 100);
+    triggerShake(3);
+    addEffect("shieldShatterRing", { cx: shCX, cy: shCY }, 500);
+    for (let fi = 0; fi < 12; fi++) {
+      addEffect("shieldShatter", { cx: shCX, cy: shCY, r: shR, fragIdx: fi, seed: Math.random()*100 }, 600);
+    }
+    spawnParticleBurst(shCX, shCY, 20, "#ffd700", 5, 2);
+    spawnFloatText("SHIELD BLOCKED!", W*0.3, H*0.38, "#ffd700", 18);
+    sfxAttackHit();
+    return;
+  }
+
+  sfxDevilAttack();
+  state.angelHP -= 1;
+  state.angelFlash = 4;
+  state.angelKnockback = 6;
+  state.noDamageTaken = false;
+  spawnBossAttack(
+    lvl,
+    state.angelX + 48*3*0.5, state.angelY + 64*1.5,
+    state.bossX + bossWB*0.5, state.bossY + (isKrakenB?128*1.4:64*3)*0.5
+  );
+  triggerShake(2);
+  spawnFloatText("-1", state.angelX + 40, state.angelY + 20, "#ff7777", 16);
+  updateBattleHUD();
+
+  if (state.angelHP <= 0) {
+    state.angelHP = 0;
+    updateBattleHUD();
+    setTimeout(function() { battleDefeat(); }, 800);
+  }
+}
+
 function showSuperpowerChoice() {
   sfxSuperPower();
-  state.battleAnswerLocked = true;
+  // Don't lock battle answer — auto-attacks keep going
+  // Just hide question UI while player picks
   stopBattleTimer();
   document.getElementById("question-area").style.display = "none";
   document.getElementById("superpower-overlay").style.display = "flex";
@@ -3497,18 +3678,18 @@ function selectSuperpower(type) {
 
   const angelCX = state.angelX + 48*3*0.5;
   const angelCY = state.angelY + 64*3*0.5;
+  const isKrakenSP = (state.currentLevel === 2);
+  const bossCXSP = state.bossX + (isKrakenSP ? 96*1.4 : 48*3)*0.5;
+  const bossCYSP = state.bossY + (isKrakenSP ? 128*1.4 : 64*3)*0.5;
 
   if (type === "shield") {
+    // DIVINE SHIELD: blocks next 2 boss attacks
     state.hasShield = true;
-    // --- DIVINE SHIELD: golden dome materialises ---
+    state.shieldCharges = 2;
     const shieldR = 64*3*0.65;
-    // Dome materialise sweep effect
     addEffect("shieldDomeMaterialise", { cx: angelCX, cy: angelCY, r: shieldR }, 700);
-    // Hex pattern flashes on briefly
     addEffect("shieldHexPattern", { cx: angelCX, cy: angelCY, r: shieldR }, 900);
-    // Golden flash
     triggerFlash("rgba(255,215,0,0.9)", 120);
-    // Burst of golden sparkle particles outward
     for (let i = 0; i < 40; i++) {
       const angle = (i / 40) * Math.PI * 2;
       const spd = 2 + Math.random() * 4;
@@ -3523,22 +3704,17 @@ function selectSuperpower(type) {
       });
     }
     spawnParticleBurst(angelCX, angelCY, 20, "#fffacd", 5, 3);
-    spawnFloatText("DIVINE SHIELD!", W*0.3, H*0.35, "#ffd700", 20);
+    spawnFloatText("DIVINE SHIELD! (x2)", W*0.3, H*0.35, "#ffd700", 20);
     updateActivePowerDisplay();
 
   } else if (type === "fire") {
-    state.activeSuperPower = type;
-    // --- WINGS OF FIRE: wing ignition ---
-    // Left wing area (angel left side)
+    // WINGS OF FIRE: 5 damage immediately + fire explosion
     const wingLX = state.angelX + 20;
     const wingRX = state.angelX + 48*3 - 20;
     const wingY  = state.angelY + 64*3*0.35;
-    // Burst rings from each wing
     addEffect("fireWingIgnite", { cx: wingLX, cy: wingY }, 600);
     addEffect("fireWingIgnite", { cx: wingRX, cy: wingY }, 600);
-    // Screen warms orange
     addEffect("fireSelectTint", {}, 900);
-    // Erupting flame particles from both wings
     for (let i = 0; i < 60; i++) {
       const side = i < 30 ? wingLX : wingRX;
       particles.push({
@@ -3552,19 +3728,53 @@ function selectSuperpower(type) {
         glow: "#ff4400"
       });
     }
-    // Golden flash
-    triggerFlash("rgba(255,100,0,0.7)", 100);
-    spawnFloatText("WINGS OF FIRE!", W*0.3, H*0.35, "#ff6600", 20);
-    updateActivePowerDisplay();
+    triggerFlash("rgba(255,100,0,0.85)", 120);
+    triggerShake(8);
+    state.angelRise = 18;
+    // Fire explosion at boss + divine strike visual
+    spawnDivineStrike(bossCXSP, state.bossY + 30);
+    addEffect("fireImpactExplosion", { x: bossCXSP, y: bossCYSP }, 800);
+    addEffect("screenTint", { color: "#ff4400" }, 600);
+    for (let i = 0; i < 40; i++) {
+      particles.push({
+        x: bossCXSP + (Math.random()-0.5)*70,
+        y: bossCYSP + (Math.random()-0.5)*70,
+        vx: (Math.random()-0.5)*5, vy:-(2+Math.random()*5),
+        life:1, decay:0.014+Math.random()*0.018,
+        r:2+Math.random()*5,
+        color:Math.random()<0.5?"#ff4400":"#ff8800", alpha:1, glow:"#ff4400"
+      });
+    }
+    sfxDivineStrike();
+    state.bossFlash = 8;
+    state.bossKnockback = 14;
+    state.bossHP -= 5;
+    state.levelScore += 300;
+    spawnFloatText("WINGS OF FIRE! -5", W*0.55, H*0.3, "#ff6600", 22);
+    updateBattleHUD();
+    if (state.bossHP <= 0) {
+      state.bossHP = 0;
+      updateBattleHUD();
+      setTimeout(function() { battleVictory(); }, 800);
+      return;
+    }
 
   } else if (type === "lightning") {
-    state.activeSuperPower = type;
-    // --- HOLY LIGHTNING selection: electric crackle ---
+    // HOLY LIGHTNING: 3 damage + heal 2 HP
     addEffect("lightningSelectFlash", { cx: angelCX, cy: angelCY, seed: Math.random() * 100 }, 500);
     addEffect("lightningSelectFlash", { cx: angelCX, cy: angelCY, seed: Math.random() * 100 + 50 }, 650);
-    // Blue-white flash
-    triggerFlash("rgba(180,220,255,0.85)", 100);
-    // Electric spark particles burst from angel
+    triggerFlash("rgba(180,220,255,0.95)", 120);
+    triggerShake(5);
+    // Lightning bolts at boss
+    for (let li = 0; li < 5; li++) {
+      setTimeout(function() {
+        addEffect("holyLightningBolt", {
+          tx: bossCXSP, ty: bossCYSP,
+          seed: Math.random() * 200,
+          offset: (Math.random() - 0.5) * 80
+        }, 350);
+      }, li * 60);
+    }
     for (let i = 0; i < 25; i++) {
       const angle = Math.random() * Math.PI * 2;
       const spd = 3 + Math.random() * 5;
@@ -3579,20 +3789,46 @@ function selectSuperpower(type) {
         glow: "#88ccff"
       });
     }
-    spawnFloatText("HOLY LIGHTNING!", W*0.3, H*0.35, "#aaddff", 20);
-    updateActivePowerDisplay();
+    // Heal angel +2
+    const healAmt = Math.min(2, state.angelHPMax - state.angelHP);
+    state.angelHP = Math.min(state.angelHPMax, state.angelHP + 2);
+    addEffect("holyHealAura", { cx: angelCX, cy: angelCY }, 700);
+    spawnParticleBurst(angelCX, angelCY, 25, "#00ff88", 4, 3);
+    for (let i = 0; i < 20; i++) {
+      particles.push({
+        x: angelCX + (Math.random()-0.5)*80,
+        y: angelCY + (Math.random()-0.5)*60,
+        vx:(Math.random()-0.5)*2, vy:-(1.5+Math.random()*3),
+        life:1, decay:0.025+Math.random()*0.02,
+        r:2+Math.random()*3,
+        color:Math.random()<0.5?"#00ff88":"#88ffcc", alpha:1, glow:"#00ff88"
+      });
+    }
+    sfxAttackHit();
+    state.bossFlash = 6;
+    state.bossKnockback = 10;
+    state.bossHP -= 3;
+    state.levelScore += 200;
+    spawnFloatText("HOLY LIGHTNING! -3", W*0.55, H*0.3, "#aaddff", 22);
+    if (healAmt > 0) spawnFloatText("+" + healAmt + " HEAL", W*0.25, H*0.45, "#00ff88", 18);
+    updateBattleHUD();
+    if (state.bossHP <= 0) {
+      state.bossHP = 0;
+      updateBattleHUD();
+      setTimeout(function() { battleVictory(); }, 800);
+      return;
+    }
   }
 
   updateBattleHUD();
-  showBattleQuestion();
+  // Resume question cycle after superpower
+  scheduleNextQuestion();
 }
 
 function updateActivePowerDisplay() {
   const el = document.getElementById("active-power-display");
   const parts = [];
-  if (state.hasShield) parts.push("🛡️ Shield");
-  if (state.activeSuperPower === "fire") parts.push("🔥 Fire");
-  if (state.activeSuperPower === "lightning") parts.push("⚡ Lightning");
+  if (state.hasShield) parts.push("Shield x" + state.shieldCharges);
   if (parts.length > 0) {
     el.textContent = parts.join("  ");
     el.style.display = "flex";
@@ -3604,6 +3840,7 @@ function updateActivePowerDisplay() {
 function handleBattleAnswer(chosenVal) {
   if (state.battleAnswerLocked || state.phase !== "battle") return;
   state.battleAnswerLocked = true;
+  state.questionPending = false;
   stopBattleTimer();
 
   const q = state.currentQ;
@@ -3621,202 +3858,46 @@ function handleBattleAnswer(chosenVal) {
   }
 
   if (isCorrect) {
-    // Determine tier
-    let tier = BATTLE_SPEED[2]; // default LIGHT BEAM
-    for (const sp of BATTLE_SPEED) {
-      if (elapsed < sp.thresh) { tier = sp; break; }
-    }
-
     state.battleCorrectCount++;
     if (elapsed < state.battleFastestAnswer) state.battleFastestAnswer = elapsed;
+    state.levelScore += 80;
 
-    let hits = tier.hits;
-    let pts = tier.pts;
-
-    // Superpower modifiers
-    const wasFireActive = (state.activeSuperPower === "fire");
-    const wasLightningActive = (state.activeSuperPower === "lightning");
-
-    if (wasFireActive) {
-      hits *= 2;
-      state.activeSuperPower = null;
-      updateActivePowerDisplay();
-    }
-    if (wasLightningActive) {
-      hits += 1;
-      state.activeSuperPower = null;
-      updateActivePowerDisplay();
-      // Heal angel
-      state.angelHP = Math.min(state.angelHPMax, state.angelHP + 1);
-      const angelCXL = state.angelX + 48*3*0.5;
-      const angelCYL = state.angelY + 64*3*0.5;
-      // EPIC: multiple golden lightning bolts crash down on boss
-      const isKrakenL = (state.currentLevel === 2);
-      const bossCXL = state.bossX + (isKrakenL ? 96*1.4 : 48*3)*0.5;
-      const bossCYL = state.bossY + (isKrakenL ? 128*1.4 : 64*3)*0.5;
-      for (let li = 0; li < 5; li++) {
-        setTimeout(function() {
-          addEffect("holyLightningBolt", {
-            tx: bossCXL, ty: bossCYL,
-            seed: Math.random() * 200,
-            offset: (Math.random() - 0.5) * 70
-          }, 350);
-        }, li * 60);
-      }
-      // White-gold screen flash
-      triggerFlash("rgba(255,255,200,0.95)", 120);
-      // Healing green aura pulse from angel
-      addEffect("holyHealAura", { cx: angelCXL, cy: angelCYL }, 700);
-      // Green sparkle particles rising from angel
-      spawnParticleBurst(angelCXL, angelCYL, 20, "#00ff88", 4, 3);
-      for (let i = 0; i < 20; i++) {
-        particles.push({
-          x: angelCXL + (Math.random() - 0.5) * 80,
-          y: angelCYL + (Math.random() - 0.5) * 60,
-          vx: (Math.random() - 0.5) * 2,
-          vy: -(1.5 + Math.random() * 3),
-          life: 1, decay: 0.025 + Math.random() * 0.02,
-          r: 2 + Math.random() * 3,
-          color: Math.random() < 0.5 ? "#00ff88" : "#88ffcc", alpha: 1,
-          glow: "#00ff88"
-        });
-      }
-      spawnFloatText("+1 HEAL", W*0.25, H*0.45, "#00ff88", 18);
-      // Boss shake from lightning
-      triggerShake(5);
-      state.bossFlash = 4;
-    }
-
-    state.levelScore += pts;
-    state.bossHP -= hits;
-
-    // Visual
-    const label = tier.label;
-    const isKrakenAtk = (state.currentLevel === 2);
-    const bossCXA = state.bossX + (isKrakenAtk ? 96*1.4 : 48*3)*0.5;
-    const bossCYA = state.bossY + (isKrakenAtk ? 128*1.4 : 64*3)*0.5;
-
-    if (tier === BATTLE_SPEED[0]) {
-      sfxDivineStrike();
-      triggerShake(wasFireActive ? 9 : 6);
-      triggerFlash(wasFireActive ? "rgba(255,100,0,0.85)" : "white", 120);
-      state.angelRise = 20;
-      spawnDivineStrike(bossCXA, state.bossY + 30);
-      if (wasFireActive) {
-        // Extra fire explosion at boss for doubled divine strike
-        addEffect("fireImpactExplosion", { x: bossCXA, y: bossCYA }, 800);
-        addEffect("screenTint", { color: "#ff4400" }, 500);
-        // Ember particles at boss
-        for (let i = 0; i < 30; i++) {
-          particles.push({
-            x: bossCXA + (Math.random() - 0.5) * 60,
-            y: bossCYA + (Math.random() - 0.5) * 60,
-            vx: (Math.random() - 0.5) * 4,
-            vy: -(2 + Math.random() * 4),
-            life: 1, decay: 0.015 + Math.random() * 0.02,
-            r: 2 + Math.random() * 4,
-            color: Math.random() < 0.5 ? "#ff4400" : "#ff8800", alpha: 1,
-            glow: "#ff4400"
-          });
-        }
-      }
-    } else {
-      sfxAttackHit();
-      if (tier === BATTLE_SPEED[1]) {
-        triggerShake(wasFireActive ? 5 : 2);
-        spawnHolySlash(
-          state.angelX + 48*3*0.5, state.angelY + 64*3*0.5,
-          state.bossX + 48*3*0.5, state.bossY + 64*3*0.5
-        );
-        if (wasFireActive) {
-          // Fire overlay on holy slash + explosion at boss
-          addEffect("fireBeamOverlay", {
-            ax: state.angelX + 48*3*0.5, ay: state.angelY + 64*3*0.5,
-            bx: bossCXA, by: bossCYA
-          }, 700);
-          setTimeout(function() {
-            addEffect("fireImpactExplosion", { x: bossCXA, y: bossCYA }, 700);
-            for (let i = 0; i < 25; i++) {
-              particles.push({
-                x: bossCXA + (Math.random()-0.5)*50,
-                y: bossCYA + (Math.random()-0.5)*50,
-                vx: (Math.random()-0.5)*3, vy:-(1.5+Math.random()*3),
-                life:1, decay:0.018+Math.random()*0.02,
-                r:2+Math.random()*4,
-                color:Math.random()<0.5?"#ff4400":"#ff8800", alpha:1, glow:"#ff4400"
-              });
-            }
-          }, 300);
-          addEffect("screenTint", { color: "#ff4400" }, 500);
-        }
-      } else {
-        spawnLightBeam(
-          state.angelX + 48*3, state.angelY + 64*1.5,
-          state.bossX, state.bossY + 64*1.5
-        );
-        if (wasFireActive) {
-          addEffect("fireBeamOverlay", {
-            ax: state.angelX + 48*3, ay: state.angelY + 64*1.5,
-            bx: state.bossX, by: state.bossY + 64*1.5
-          }, 600);
-          setTimeout(function() {
-            addEffect("fireImpactExplosion", { x: bossCXA, y: bossCYA }, 700);
-            for (let i = 0; i < 25; i++) {
-              particles.push({
-                x: bossCXA + (Math.random()-0.5)*50,
-                y: bossCYA + (Math.random()-0.5)*50,
-                vx: (Math.random()-0.5)*3, vy:-(1.5+Math.random()*3),
-                life:1, decay:0.018+Math.random()*0.02,
-                r:2+Math.random()*4,
-                color:Math.random()<0.5?"#ff4400":"#ff8800", alpha:1, glow:"#ff4400"
-              });
-            }
-          }, 200);
-          addEffect("screenTint", { color: "#ff5500" }, 450);
-          triggerShake(3);
-        }
-      }
-    }
-
-    state.bossFlash = 6;
-    state.bossKnockback = 10;
-    spawnFloatText(label + " -" + hits, W*0.6, H*0.35, tier.color, 20);
-    spawnFloatText("+" + pts, W*0.5, H*0.45, "#ffd700", 18);
-
-    updateBattleHUD();
-
-    if (state.bossHP <= 0) {
-      state.bossHP = 0;
-      updateBattleHUD();
-      setTimeout(function() { battleVictory(); }, 800);
-      return;
-    }
-
-  } else {
-    // Wrong / timeout — boss attacks
-    state.battleWrongCount++;
-    state.noDamageTaken = false;
-
-    // Show correct answer for 1.5s (learning moment)
-    if (chosenVal === null) spawnFloatText("TIME! = " + correct, W*0.5, H*0.4, "#ff6666", 22);
-    else spawnFloatText("✗ " + correct, W*0.5, H*0.4, "#ff6666", 20);
+    // Brief "correct" flash, then show superpower picker
+    triggerFlash("rgba(0,255,180,0.35)", 150);
+    spawnFloatText("CORRECT! CHOOSE POWER!", W*0.5, H*0.38, "#00ffcc", 18);
 
     setTimeout(function() {
       if (state.phase !== "battle") return;
-      // Check shield
-      if (state.hasShield) {
-        state.hasShield = false;
-        updateActivePowerDisplay();
-        // ---- DIVINE SHIELD: DRAMATIC SHATTER ----
+      document.getElementById("question-area").style.display = "none";
+      showSuperpowerChoice();
+    }, 600);
+
+  } else {
+    // Wrong / timeout — BIG boss attack: 2 damage, heavy shake
+    state.battleWrongCount++;
+    state.noDamageTaken = false;
+
+    // Show correct answer highlighted for 1 second (learning moment)
+    if (chosenVal === null) spawnFloatText("TIME! = " + correct, W*0.5, H*0.4, "#ff6666", 22);
+    else spawnFloatText("WRONG! = " + correct, W*0.5, H*0.4, "#ff4444", 22);
+
+    setTimeout(function() {
+      if (state.phase !== "battle") return;
+      document.getElementById("question-area").style.display = "none";
+
+      // Check shield charges
+      if (state.shieldCharges > 0) {
+        state.shieldCharges -= Math.min(2, state.shieldCharges); // big attack drains 2 charges (or all)
+        if (state.shieldCharges <= 0) {
+          state.hasShield = false;
+          updateActivePowerDisplay();
+        }
         const shCX = state.angelX + 48*3*0.5;
         const shCY = state.angelY + 64*3*0.5;
         const shR  = 64*3*0.65;
-        // Bright golden flash
         triggerFlash("rgba(255,215,0,0.9)", 120);
-        triggerShake(5);
-        // Shockwave expanding ring
+        triggerShake(6);
         addEffect("shieldShatterRing", { cx: shCX, cy: shCY }, 600);
-        // Shatter fragments — 18 spinning golden triangles
         const shatSeed = Math.random() * 100;
         for (let fi = 0; fi < 18; fi++) {
           addEffect("shieldShatter", {
@@ -3824,30 +3905,37 @@ function handleBattleAnswer(chosenVal) {
             fragIdx: fi, seed: shatSeed
           }, 700 + Math.random() * 200);
         }
-        // Golden sparkle scatter
-        spawnParticleBurst(shCX, shCY, 35, "#ffd700", 7, 3);
+        spawnParticleBurst(shCX, shCY, 40, "#ffd700", 7, 3);
         spawnParticleBurst(shCX, shCY, 15, "#fffacd", 5, 2);
-        spawnFloatText("SHIELD BLOCKED!", W*0.3, H*0.38, "#ffd700", 20);
+        spawnFloatText("SHIELD SHATTERED!", W*0.3, H*0.38, "#ffd700", 20);
         sfxAttackHit();
       } else {
+        // BIG attack: 2 damage
         sfxDevilAttack();
-        state.angelHP -= 1;
-        // Drain power bar on hit (15%)
-        state.powerBar = Math.max(0, state.powerBar - 15);
-        updatePowerBarDOM();
-        state.angelFlash = 6;
-        state.angelKnockback = 10;
+        state.angelHP = Math.max(0, state.angelHP - 2);
+        state.angelFlash = 8;
+        state.angelKnockback = 16;
+        triggerShake(7);
 
-        // Boss attack animation
-        const isKraken = (state.currentLevel === 2);
-        const bossW = isKraken ? 96*1.4 : 48*3;
+        const isKrakenBig = (state.currentLevel === 2);
+        const bossWBig = isKrakenBig ? 96*1.4 : 48*3;
         spawnBossAttack(
           state.currentLevel,
           state.angelX + 48*3*0.5, state.angelY + 64*1.5,
-          state.bossX + bossW*0.5, state.bossY + (isKraken?128*1.4:64*3)*0.5
+          state.bossX + bossWBig*0.5, state.bossY + (isKrakenBig?128*1.4:64*3)*0.5
         );
-        triggerShake(3);
-        spawnFloatText("-1 HP", W*0.28, H*0.35, "#ff4444", 20);
+        // Extra dramatic second hit
+        setTimeout(function() {
+          if (state.phase !== "battle") return;
+          spawnBossAttack(
+            state.currentLevel,
+            state.angelX + 48*3*0.5, state.angelY + 64*1.5,
+            state.bossX + bossWBig*0.5, state.bossY + (isKrakenBig?128*1.4:64*3)*0.5
+          );
+          triggerShake(5);
+        }, 300);
+
+        spawnFloatText("BIG HIT! -2", W*0.28, H*0.33, "#ff2222", 22);
         updateBattleHUD();
       }
 
@@ -3858,15 +3946,10 @@ function handleBattleAnswer(chosenVal) {
         return;
       }
 
-      // Advance question after boss attack resolves
-      state.battleQIndex++;
-      nextBattleQuestion();
-    }, 1500);
-    return;
+      // Schedule next question after resolution
+      scheduleNextQuestion();
+    }, 1200);
   }
-
-  state.battleQIndex++;
-  setTimeout(function() { nextBattleQuestion(); }, 500);
 }
 
 function nextBattleQuestion() {
@@ -3883,8 +3966,9 @@ function nextBattleQuestion() {
 // PHASE: VICTORY
 // ============================================================
 function battleVictory() {
+  if (state.phase === "victory" || state.phase === "defeat") return; // guard double-trigger
   state.phase = "victory";
-  stopBattleTimer();
+  clearBattleTimers();
   hideAllOverlays();
 
   sfxVictory();
@@ -3922,7 +4006,7 @@ function battleVictory() {
   state.totalScore += multiplied;
   state.levelScore = 0;
 
-  const acc = state.battleQCount > 0 ? Math.round(state.battleCorrectCount / state.battleQCount * 100) : 0;
+  const acc = state.battleTotalAsked > 0 ? Math.round(state.battleCorrectCount / state.battleTotalAsked * 100) : 0;
   const fastest = state.battleFastestAnswer < 99 ? state.battleFastestAnswer.toFixed(1)+"s" : "--";
 
   setTimeout(function() {
@@ -3938,7 +4022,7 @@ function battleVictory() {
     document.getElementById("outcome-sub").textContent = LEVEL_CONFIG[lvl].boss + " has been defeated!";
     document.getElementById("defeat-progress-wrap").style.display = "none";
     document.getElementById("outcome-stats").innerHTML =
-      "Accuracy: "+acc+"%  |  Fastest: "+fastest+"<br>Questions: "+state.battleCorrectCount+"/"+state.battleQCount;
+      "Shots Fired: "+state.totalShotsFired+"  |  Fastest Answer: "+fastest+"<br>Questions Correct: "+state.battleCorrectCount+"/"+state.battleTotalAsked+"  ("+acc+"% accuracy)";
     let breakdown = "Base Score: "+base.toLocaleString();
     if (bonusLines.length) breakdown += "<br>" + bonusLines.join("<br>");
     breakdown += "<br>Level Multiplier: ×" + mult.toFixed(1);
@@ -3958,8 +4042,9 @@ function battleVictory() {
 // PHASE: DEFEAT
 // ============================================================
 function battleDefeat() {
+  if (state.phase === "victory" || state.phase === "defeat") return; // guard double-trigger
   state.phase = "defeat";
-  stopBattleTimer();
+  clearBattleTimers();
   hideAllOverlays();
 
   sfxDefeat();
@@ -3985,7 +4070,7 @@ function battleDefeat() {
       document.getElementById("defeat-progress-fill").style.width = damagePct+"%";
     }, 100);
     document.getElementById("outcome-stats").innerHTML =
-      "Accuracy: "+Math.round(state.battleCorrectCount/state.battleQCount*100)+"%";
+      "Shots Fired: "+state.totalShotsFired+"  |  Accuracy: "+(state.battleTotalAsked > 0 ? Math.round(state.battleCorrectCount/state.battleTotalAsked*100) : 0)+"%";
     document.getElementById("outcome-score-breakdown").innerHTML = "";
     const btn = document.getElementById("outcome-btn");
     btn.textContent = "RETRY";
