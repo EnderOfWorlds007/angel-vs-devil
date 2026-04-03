@@ -163,6 +163,17 @@ html, body {
 
 .mp-shield-row { font-size:10px; color:#88aaff; margin-bottom:6px; text-align:center; min-height:14px; }
 
+/* Character preview canvas inside each side panel */
+.mp-char-canvas-wrap {
+  display:flex; justify-content:center; align-items:center;
+  margin-bottom:6px;
+}
+.mp-char-canvas-wrap canvas {
+  image-rendering:pixelated;
+  border-radius:6px;
+  background:rgba(0,0,0,0.25);
+}
+
 /* Question area inside HUD panels */
 .mp-question-wrap {
   flex:1; display:flex; flex-direction:column; justify-content:flex-end;
@@ -178,17 +189,20 @@ html, body {
   display:grid; grid-template-columns:1fr 1fr; gap:4px;
 }
 .mp-ans-btn {
-  padding:7px 4px; border-radius:7px;
+  position:relative; padding:7px 4px; border-radius:7px;
   border:2px solid rgba(255,255,255,0.2);
   background:rgba(10,10,40,0.85);
   color:#fff; font-size:13px; font-weight:bold;
   cursor:pointer; transition:all 0.1s;
-  text-align:center;
+  text-align:center; min-height:50px;
+  display:flex; align-items:center; justify-content:center;
 }
 .mp-ans-btn:hover { border-color:#ffd700; background:rgba(40,40,80,0.95); }
 .mp-ans-btn.correct { background:rgba(0,160,70,0.9); border-color:#00ee88; }
 .mp-ans-btn.wrong   { background:rgba(160,30,30,0.9); border-color:#ff4444; }
 .mp-ans-btn.idle    { opacity:0.3; pointer-events:none; }
+.key-hint { position:absolute; top:2px; left:5px; font-size:9px; color:rgba(255,255,255,0.3); font-weight:normal; }
+.ans-num  { font-size:28px; font-weight:bold; line-height:1; }
 
 /* Power selection overlay inside each panel */
 .mp-power-overlay {
@@ -401,6 +415,10 @@ html, body {
 
       <div class="mp-shield-row" id="left-shield-row"></div>
 
+      <div class="mp-char-canvas-wrap">
+        <canvas id="left-char-canvas" width="120" height="160"></canvas>
+      </div>
+
       <div class="mp-train-count" id="left-train-count" style="display:none"></div>
 
       <div class="mp-question-wrap">
@@ -432,6 +450,10 @@ html, body {
       <div class="mp-power-wrap"><div class="mp-power-fill" id="right-power-fill" style="width:0%"></div></div>
 
       <div class="mp-shield-row" id="right-shield-row"></div>
+
+      <div class="mp-char-canvas-wrap">
+        <canvas id="right-char-canvas" width="120" height="160"></canvas>
+      </div>
 
       <div class="mp-train-count" id="right-train-count" style="display:none"></div>
 
@@ -696,6 +718,7 @@ function startMatch() {
   mp.p1Stats = { shotsFired:0, shotsHit:0, powersUsed:0 };
   mp.p2Stats = { shotsFired:0, shotsHit:0, powersUsed:0 };
   gameMode = mp.difficulty;
+  startVoiceRecognition(); // re-enable voice if it was stopped at lobby
   startPreRound();
 }
 
@@ -849,11 +872,11 @@ function updateTrainCount(side) {
 }
 
 function showSideQuestion(side, q, choices, mode) {
-  var prefix = (side === "left") ? ["[1]","[2]","[3]","[4]"] : ["[9]","[0]","[-]","[=]"];
+  var keyLabels = (side === "left") ? ["1","2","3","4"] : ["9","0","-","="];
   document.getElementById(side + "-q-text").textContent = q.a + " × " + q.b + " = ?";
   for (var i=0; i<4; i++) {
     var btn = document.getElementById(side + "-btn" + i);
-    btn.textContent = prefix[i] + " " + choices[i];
+    btn.innerHTML = '<span class="key-hint">' + keyLabels[i] + '</span><span class="ans-num">' + choices[i] + '</span>';
     btn.dataset.val = choices[i];
     btn.dataset.mode = mode;
     btn.className = "mp-ans-btn";
@@ -864,7 +887,7 @@ function clearSideQuestion(side) {
   document.getElementById(side + "-q-text").textContent = "";
   for (var i=0; i<4; i++) {
     var btn = document.getElementById(side + "-btn" + i);
-    btn.textContent = "";
+    btn.innerHTML = "";
     btn.dataset.val = "";
     btn.className = "mp-ans-btn idle";
   }
@@ -1018,8 +1041,6 @@ function startBattlePhase() {
   // Start question cycles (staggered)
   scheduleNextQuestion("left",  0);
   scheduleNextQuestion("right", 1500);
-
-  startVoiceRecognition();
 }
 
 function generateBattlePool(level, wrongAnswers) {
@@ -1753,7 +1774,7 @@ function stopBattleTimers() {
     }
   });
   if (mp.trainingInterval) { clearInterval(mp.trainingInterval); mp.trainingInterval = null; }
-  stopVoiceRecognition();
+  // Voice stays active between rounds; only stopped explicitly at lobby
 }
 
 // ============================================================
@@ -1890,6 +1911,7 @@ function showLobby() {
   document.getElementById("lobby-screen").style.display = "flex";
   mp.phase = "lobby";
   stopBattleTimers();
+  stopVoiceRecognition();
   mp.battleActive = false;
 }
 
@@ -2030,6 +2052,8 @@ function renderTraining() {
   drawParticles();
   renderCustomEffects();
   renderEffects();
+
+  drawSideCanvases();
 }
 
 function renderBattle() {
@@ -2039,6 +2063,7 @@ function renderBattle() {
   drawParticles();
   renderCustomEffects();
   renderEffects();
+  drawSideCanvases();
 }
 
 function renderBattlefield() {
@@ -2130,6 +2155,45 @@ function drawSideCharacterFlipped(side, x, y, scale) {
   ctx.restore();
 }
 
+// Draw character previews into side panel canvases
+var leftCharCanvas  = null;
+var rightCharCanvas = null;
+var leftCharCtx     = null;
+var rightCharCtx    = null;
+
+function initSideCanvases() {
+  leftCharCanvas  = document.getElementById("left-char-canvas");
+  rightCharCanvas = document.getElementById("right-char-canvas");
+  if (leftCharCanvas)  leftCharCtx  = leftCharCanvas.getContext("2d");
+  if (rightCharCanvas) rightCharCtx = rightCharCanvas.getContext("2d");
+}
+
+function drawSideCanvases() {
+  if (!leftCharCtx || !rightCharCtx) return;
+  if (!mp.left || !mp.right) return;
+
+  var cw = 120, ch = 160;
+  var scale = 2.0;
+  var charW = 48 * scale, charH = 64 * scale;
+  var offX = Math.floor((cw - charW) / 2);
+  var offY = Math.floor((ch - charH) / 2);
+
+  // Temporarily swap ctx to side canvas, draw, restore
+  var mainCtx = ctx;
+
+  // Left panel character
+  leftCharCtx.clearRect(0, 0, cw, ch);
+  ctx = leftCharCtx;
+  drawSideCharacter("left", offX, offY, scale);
+  ctx = mainCtx;
+
+  // Right panel character (flipped to face inward)
+  rightCharCtx.clearRect(0, 0, cw, ch);
+  ctx = rightCharCtx;
+  drawSideCharacterFlipped("right", offX, offY, scale);
+  ctx = mainCtx;
+}
+
 // Draw devil character — uses boss sprites (devil/violet) or drawn shapes
 function drawDevilCharacter(x, y, scale, stage) {
   // Use devil or violet sprite for high stages, drawn shapes for low stages
@@ -2205,6 +2269,7 @@ function renderTitle() {
 // VOICE RECOGNITION
 // ============================================================
 var voiceRecognition = null;
+var voiceActive = false; // tracks whether we want voice running
 var NUMBER_WORDS = {
   // English
   "one":1,"two":2,"three":3,"four":4,"five":5,"six":6,"seven":7,"eight":8,
@@ -2233,12 +2298,15 @@ var NUMBER_WORDS = {
 
 function startVoiceRecognition() {
   if (!window.SpeechRecognition && !window.webkitSpeechRecognition) return;
+  if (voiceActive) return; // already running
+  voiceActive = true;
   var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   voiceRecognition = new SR();
   voiceRecognition.continuous = true;
   voiceRecognition.interimResults = true;
   voiceRecognition.lang = (mp.lang === "fr") ? "fr-FR" : "en-US";
   voiceRecognition.onresult = function(event) {
+    if (!mp.battleActive) return; // ignore voice input outside battle
     var transcript = "";
     for (var i=event.resultIndex; i<event.results.length; i++) {
       transcript += event.results[i][0].transcript;
@@ -2247,14 +2315,20 @@ function startVoiceRecognition() {
   };
   voiceRecognition.onerror = function() {};
   voiceRecognition.onend = function() {
-    if (mp.battleActive) {
-      try { voiceRecognition.start(); } catch(e) {}
+    if (voiceActive) {
+      // Keep restarting as long as we want voice active
+      setTimeout(function() {
+        if (voiceActive && voiceRecognition) {
+          try { voiceRecognition.start(); } catch(e) {}
+        }
+      }, 200);
     }
   };
   try { voiceRecognition.start(); } catch(e) {}
 }
 
 function stopVoiceRecognition() {
+  voiceActive = false;
   if (voiceRecognition) {
     try { voiceRecognition.stop(); } catch(e) {}
     voiceRecognition = null;
@@ -2443,8 +2517,12 @@ function init() {
     window.state = { seraphimSparkles: [], frostSparkles: [] };
   }
 
+  initSideCanvases();
   showLobby();
   requestAnimationFrame(gameLoop);
+
+  // Request mic permission at lobby load so the prompt appears before gameplay
+  startVoiceRecognition();
 }
 
 loadSprites(function() {
