@@ -388,6 +388,11 @@ html, body {
           <div class="sp-name">Divine Shield</div>
           <div class="sp-desc">Block next 2 boss attacks</div>
         </button>
+        <button class="sp-btn" id="sp-btn-3">
+          <div class="sp-icon">💚</div>
+          <div class="sp-name">Healing Potion</div>
+          <div class="sp-desc">Restore 4 HP</div>
+        </button>
       </div>
     </div>
 
@@ -4272,6 +4277,54 @@ function selectSuperpower(type) {
       setTimeout(function() { battleVictory(); }, 800);
       return;
     }
+
+  } else if (type === "heal") {
+    // HEALING POTION: restore 4 HP with spectacular green healing visual
+    var healAmount = Math.min(4, state.angelHPMax - state.angelHP);
+    state.angelHP = Math.min(state.angelHPMax, state.angelHP + 4);
+
+    // Green healing pulse — expanding rings
+    addEffect("holyHealAura", { cx: angelCX, cy: angelCY }, 800);
+    addEffect("holyHealAura", { cx: angelCX, cy: angelCY - 20 }, 1000);
+
+    // Potion visual: green liquid particles swirl inward then burst outward
+    for (var hi = 0; hi < 40; hi++) {
+      var hAngle = (hi / 40) * Math.PI * 2;
+      var hDist = 60 + Math.random() * 40;
+      particles.push({
+        x: angelCX + Math.cos(hAngle) * hDist,
+        y: angelCY + Math.sin(hAngle) * hDist,
+        vx: -Math.cos(hAngle) * (3 + Math.random() * 2),
+        vy: -Math.sin(hAngle) * (3 + Math.random() * 2) - 1,
+        life: 1, decay: 0.02 + Math.random() * 0.015,
+        r: 3 + Math.random() * 4,
+        color: Math.random() < 0.4 ? "#00ff66" : Math.random() < 0.7 ? "#44ffaa" : "#88ffdd",
+        alpha: 1, glow: "#00ff88"
+      });
+    }
+    // Rising heal sparkles
+    for (var hj = 0; hj < 25; hj++) {
+      particles.push({
+        x: angelCX + (Math.random() - 0.5) * 80,
+        y: angelCY + 40 + Math.random() * 40,
+        vx: (Math.random() - 0.5) * 1.5,
+        vy: -(2 + Math.random() * 4),
+        life: 1, decay: 0.018 + Math.random() * 0.015,
+        r: 2 + Math.random() * 3,
+        color: "#00ff88", alpha: 1, glow: "#44ffcc"
+      });
+    }
+    // Green plus signs floating up
+    spawnFloatText("+" + healAmount + " HP", angelCX, angelCY - 40, "#00ff88", 26);
+    spawnFloatText("HEALING POTION!", W * 0.3, H * 0.35, "#44ffaa", 22);
+
+    // Green screen flash + gentle shake
+    triggerFlash("rgba(0,255,100,0.3)", 150);
+    triggerShake(2);
+    sfxSuperPower();
+
+    state.levelScore += 50;
+    updateBattleHUD();
   }
 
   updateBattleHUD();
@@ -5140,6 +5193,7 @@ for (let i=0; i<4; i++) {
 document.getElementById("sp-btn-0").addEventListener("click", function() { unlockAudio(); selectSuperpower("fire"); });
 document.getElementById("sp-btn-1").addEventListener("click", function() { unlockAudio(); selectSuperpower("lightning"); });
 document.getElementById("sp-btn-2").addEventListener("click", function() { unlockAudio(); selectSuperpower("shield"); });
+document.getElementById("sp-btn-3").addEventListener("click", function() { unlockAudio(); selectSuperpower("heal"); });
 
 // ============================================================
 // INIT
