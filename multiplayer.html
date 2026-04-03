@@ -842,7 +842,9 @@ function showTrainingQuestion(side) {
 function updateTrainCount(side) {
   var s = mp[side];
   var el = document.getElementById(side + "-train-count");
-  if (el) el.textContent = s.trainIdx + " / 6";
+  if (!el) return;
+  var streakStr = s.streak >= 2 ? " 🔥×" + s.streak : "";
+  el.textContent = s.trainIdx + " / 6" + streakStr;
 }
 
 function showSideQuestion(side, q, choices, mode) {
@@ -902,7 +904,9 @@ function handleTrainingAnswer(side, valStr) {
     if (newStage > s.stage) {
       s.stage = newStage;
       sfxStreak();
-      spawnFloatText(STAGE_NAMES[s.stage], side==="left" ? 100 : 700, 200, "#ffd700", 18);
+      var stageLabel = (s.role === "devil" ? DEVIL_STAGE_NAMES : STAGE_NAMES)[s.stage] || "";
+      var stageLabelColor = s.role === "devil" ? "#ff6666" : "#ffd700";
+      spawnFloatText(stageLabel + "!", side==="left" ? 100 : 700, 200, stageLabelColor, 18);
     }
     updateSideHUD(side);
   } else {
@@ -1111,6 +1115,10 @@ function handleBattleAnswer(side, valStr) {
     }
     if (newStage > s.stage) {
       s.stage = Math.min(4, newStage);
+      sfxStreak();
+      var bStageLabel = (s.role === "devil" ? DEVIL_STAGE_NAMES : STAGE_NAMES)[s.stage] || "";
+      var bStageLabelColor = s.role === "devil" ? "#ff6666" : "#ffd700";
+      spawnFloatText(bStageLabel + "!", side==="left" ? 100 : 700, 200, bStageLabelColor, 18);
     }
     s.battleQ = null;
 
@@ -1191,6 +1199,9 @@ function selectPower(side, idx) {
   s.powersUsed++;
   var opp = (side === "left") ? "right" : "left";
   sfxSuperPower();
+  // Show power name as float text
+  var powerNameColor = (s.role === "angel") ? "#ffd700" : "#ff6666";
+  spawnFloatText(p.name.toUpperCase(), side==="left" ? 100 : 700, 160, powerNameColor, 15);
 
   switch(p.type) {
     case "fire":
@@ -1252,14 +1263,16 @@ function handleShoot(side) {
   var dmg = (s.stage >= 3) ? 2 : 1;
   var opp = (side === "left") ? "right" : "left";
 
-  // Fire visual
+  // Fire visual and sound
+  if (s.role === "angel") sfxDivineStrike(); else sfxDevilAttack();
   spawnShootAttack(side, s.stage, s.role);
 
   // Hit after slight delay
   setTimeout(function() {
     if (!mp.battleActive) return;
+    s.shotsHit++;
     applyDamage(opp, dmg, side);
-    sfxAttackHit();
+    // sfxAttackHit is called inside applyDamage
   }, 350);
 }
 
@@ -1442,8 +1455,8 @@ function spawnInfernoBarrage(ax, ay, bx2, by2) {
 function spawnDevilPower_Fire(side) {
   var tx = (side === "left") ? CENTER_X + CENTER_W - 80 : CENTER_X + 80;
   var ty = MP_H * 0.38;
-  // Dark red/black fireball + skull smoke
-  addEffect("devilFireball", { ax: getDevilX(side), ay: MP_H*0.4, bx:tx, by:ty }, 600);
+  // Dark red/black fireball + skull smoke (params: sx/sy = start, ex/ey = end)
+  addEffect("devilFireball", { sx: getDevilX(side), sy: MP_H*0.4, ex:tx, ey:ty }, 600);
   spawnParticleBurst(tx, ty, 30, "#cc2200", 8, 5);
   spawnParticleBurst(tx, ty, 15, "#440000", 5, 3);
   // Skull smoke particles drifting up
@@ -1473,7 +1486,7 @@ function spawnDevilPower_Lightning(side) {
       }, ii*70);
     })(i);
   }
-  // Heal particles — dark green mist rising from self
+  // Heal particles — dark red life-drain mist rising from self
   var selfCX = getAngelCX(side);
   for (var j=0; j<25; j++) {
     particles.push({
@@ -1481,8 +1494,8 @@ function spawnDevilPower_Lightning(side) {
       vx:(Math.random()-0.5)*1, vy:-(0.8+Math.random()*2),
       life:1, decay:0.018+Math.random()*0.015,
       r:3+Math.random()*4,
-      color:Math.random()<0.6?"#004400":"#002200",
-      alpha:0.7, glow:"#004400"
+      color:Math.random()<0.6?"#880022":"#550011",
+      alpha:0.7, glow:"#880022"
     });
   }
 }
@@ -1796,8 +1809,10 @@ function showRoundEnd(winnerSide) {
 
   // Accumulate per-player stats
   mp.p1Stats.shotsFired += mp.left.shotsFired;
+  mp.p1Stats.shotsHit   += mp.left.shotsHit;
   mp.p1Stats.powersUsed += mp.left.powersUsed;
   mp.p2Stats.shotsFired += mp.right.shotsFired;
+  mp.p2Stats.shotsHit   += mp.right.shotsHit;
   mp.p2Stats.powersUsed += mp.right.powersUsed;
 }
 
@@ -1853,8 +1868,8 @@ function showMatchEnd(winner) {
   document.getElementById("match-end-score").textContent = mp.scores[0] + " — " + mp.scores[1];
 
   var stats = [
-    "Player 1 — Shots Fired: " + mp.p1Stats.shotsFired + " | Powers Used: " + mp.p1Stats.powersUsed,
-    "Player 2 — Shots Fired: " + mp.p2Stats.shotsFired + " | Powers Used: " + mp.p2Stats.powersUsed,
+    "Player 1 — Shots: " + mp.p1Stats.shotsHit + "/" + mp.p1Stats.shotsFired + " | Powers Used: " + mp.p1Stats.powersUsed,
+    "Player 2 — Shots: " + mp.p2Stats.shotsHit + "/" + mp.p2Stats.shotsFired + " | Powers Used: " + mp.p2Stats.powersUsed,
   ].join("\n");
   document.getElementById("match-end-stats").textContent = stats;
   sfxVictory();
@@ -1929,7 +1944,16 @@ function updateSideHUD(side) {
   document.getElementById(side + "-hp-max").textContent = s.hpMax;
 
   var pwPct = Math.min(100, s.powerBar);
-  document.getElementById(side + "-power-fill").style.width = pwPct + "%";
+  var pwFill = document.getElementById(side + "-power-fill");
+  pwFill.style.width = pwPct + "%";
+  // Role-themed power bar color
+  if (isAngel) {
+    pwFill.style.background = "linear-gradient(90deg, #ff8800, #ffdd00, #ffffff)";
+    pwFill.style.boxShadow = "0 0 6px rgba(255,200,0,0.5)";
+  } else {
+    pwFill.style.background = "linear-gradient(90deg, #440066, #8800cc, #ff00ff)";
+    pwFill.style.boxShadow = "0 0 6px rgba(180,0,220,0.5)";
+  }
 
   var shieldEl = document.getElementById(side + "-shield-row");
   if (s.shieldCharges > 0) {
@@ -2189,9 +2213,9 @@ var NUMBER_WORDS = {
   "twenty five":25,"twenty six":26,"twenty seven":27,"twenty eight":28,
   "twenty nine":29,"thirty":30,"thirty one":31,"thirty two":32,"thirty three":33,
   "thirty four":34,"thirty five":35,"thirty six":36,"forty":40,"forty two":42,
-  "forty eight":48,"fifty":50,"fifty four":54,"sixty":60,
+  "forty five":45,"forty eight":48,"fifty":50,"fifty four":54,"sixty":60,
   // French
-  "un":1,"deux":2,"trois":3,"quatre":4,"cinq":5,"sept":7,"huit":8,
+  "un":1,"deux":2,"trois":3,"quatre":4,"cinq":5,"six":6,"sept":7,"huit":8,
   "neuf":9,"dix":10,"onze":11,"douze":12,"treize":13,"quatorze":14,
   "quinze":15,"seize":16,"dix sept":17,"dix-sept":17,"dix huit":18,"dix-huit":18,
   "dix neuf":19,"dix-neuf":19,"vingt":20,"vingt et un":21,"vingt-et-un":21,
@@ -2199,8 +2223,10 @@ var NUMBER_WORDS = {
   "vingt quatre":24,"vingt-quatre":24,"vingt cinq":25,"vingt-cinq":25,
   "vingt six":26,"vingt-six":26,"vingt sept":27,"vingt-sept":27,
   "vingt huit":28,"vingt-huit":28,"vingt neuf":29,"vingt-neuf":29,
-  "trente":30,"trente six":36,"trente-six":36,"quarante":40,"quarante deux":42,
-  "quarante-deux":42,"quarante huit":48,"quarante-huit":48,"cinquante":50,
+  "trente":30,"trente deux":32,"trente-deux":32,"trente cinq":35,"trente-cinq":35,
+  "trente six":36,"trente-six":36,"quarante":40,"quarante deux":42,
+  "quarante-deux":42,"quarante cinq":45,"quarante-cinq":45,
+  "quarante huit":48,"quarante-huit":48,"cinquante":50,
   "cinquante quatre":54,"cinquante-quatre":54,"soixante":60,
 };
 
@@ -2394,7 +2420,7 @@ function spawnAngelAttack(side, type) {
   var by2 = MP_H * 0.38;
 
   switch(type) {
-    case "fire":      spawnBossAttack_DevilQueen(ax, ay, bx2, by2); break; // reuse fire effect
+    case "fire":      spawnDivineBarrage(ax, ay, bx2, by2); break; // golden divine barrage for Wings of Fire
     case "lightning": spawnHolySlash(ax, ay, bx2, by2); break;
     case "heal":
       spawnParticleBurst(ax, ay, 20, "#00ff88", 4, 3);
