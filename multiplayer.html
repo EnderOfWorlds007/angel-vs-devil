@@ -718,7 +718,6 @@ function startMatch() {
   mp.p1Stats = { shotsFired:0, shotsHit:0, powersUsed:0 };
   mp.p2Stats = { shotsFired:0, shotsHit:0, powersUsed:0 };
   gameMode = mp.difficulty;
-  startVoiceRecognition(); // re-enable voice if it was stopped at lobby
   startPreRound();
 }
 
@@ -998,6 +997,7 @@ function finishTrainingSide(side, forced) {
 function startBattlePhase() {
   mp.phase = "battle";
   mp.battleActive = true;
+  startVoiceRecognition(); // Start voice once when first battle begins
 
   var lvl = mp.level;
   var left  = mp.left;
@@ -2025,21 +2025,7 @@ function renderLobby() {
 function renderTraining() {
   renderBattlefield();
 
-  // Draw both characters in center zone (training positions)
-  var lvl = mp.level;
-  var scale = 2.5;
-  var angelW = 48*scale, angelH = 64*scale;
-
-  // Left player (angel or devil)
-  var leftX = CENTER_X + 20;
-  var leftY  = MP_H*0.5 - angelH*0.5 + angelBobOffset;
-  drawSideCharacter("left", leftX, leftY, scale);
-
-  // Right player
-  var rightX = CENTER_X + CENTER_W - 20 - angelW;
-  var rightY  = MP_H*0.5 - angelH*0.5 + bossBobOffset;
-  drawSideCharacter("right", rightX, rightY, scale);
-
+  // Characters are drawn in the side panel canvases, not in the center
   // VS text in center
   ctx.save();
   ctx.font = "bold 28px Segoe UI";
@@ -2092,32 +2078,11 @@ function renderBattlefield() {
 }
 
 function drawBattleCharacters() {
-  var scale = 2.8;
-  var angelW = 48*scale, angelH = 64*scale;
-
-  // Left player character
-  var leftX = CENTER_X + 30;
-  var leftY  = MP_H*0.45 - angelH*0.5 + angelBobOffset;
-  drawSideCharacter("left", leftX, leftY, scale);
-
-  // Right player character (flipped visually via ctx.scale)
-  var rightX = CENTER_X + CENTER_W - 30 - angelW;
-  var rightY  = MP_H*0.45 - angelH*0.5 + bossBobOffset;
-  drawSideCharacterFlipped("right", rightX, rightY, scale);
-
-  // Draw hit flash overlay
+  // Characters are drawn in side panel canvases now.
+  // Only process hit flash decay (visual flash is on side canvases).
   ["left","right"].forEach(function(side) {
     var s = mp[side];
-    if (s && s.flash > 0) {
-      s.flash--;
-      var fx2 = (side === "left") ? leftX : rightX;
-      var fy2 = (side === "left") ? leftY : rightY;
-      ctx.save();
-      ctx.globalAlpha = s.flash / 8 * 0.5;
-      ctx.fillStyle = "#ff4444";
-      ctx.fillRect(fx2, fy2, angelW, angelH);
-      ctx.restore();
-    }
+    if (s && s.flash > 0) s.flash--;
   });
 }
 
@@ -2313,18 +2278,13 @@ function startVoiceRecognition() {
     }
     processVoiceInput(transcript.toLowerCase().trim());
   };
-  voiceRecognition.onerror = function() {};
+  voiceRecognition.onerror = function() { voiceActive = false; };
   voiceRecognition.onend = function() {
-    if (voiceActive) {
-      // Keep restarting as long as we want voice active
-      setTimeout(function() {
-        if (voiceActive && voiceRecognition) {
-          try { voiceRecognition.start(); } catch(e) {}
-        }
-      }, 200);
-    }
+    // Don't restart — avoids repeated permission prompts.
+    // Voice stays active for the session until browser stops it.
+    voiceActive = false;
   };
-  try { voiceRecognition.start(); } catch(e) {}
+  try { voiceRecognition.start(); } catch(e) { voiceActive = false; }
 }
 
 function stopVoiceRecognition() {
@@ -2521,8 +2481,7 @@ function init() {
   showLobby();
   requestAnimationFrame(gameLoop);
 
-  // Request mic permission at lobby load so the prompt appears before gameplay
-  startVoiceRecognition();
+  // Voice is started only when battle begins (not at lobby — avoids repeated permission prompts)
 }
 
 loadSprites(function() {
