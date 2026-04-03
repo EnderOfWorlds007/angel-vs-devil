@@ -501,6 +501,18 @@ let state = {
   angelRise: 0,
   bossDefeated: false, bossDefeatedTimer: 0,
   bossEntranceX: 0, bossEntrancePhase: 0,
+  // evolution transition
+  evolutionFlash: 0, evolutionFadeOut: 0, evolutionFadeIn: 0,
+  evolutionOldStage: 0, evolutionNewStage: 0,
+  evolutionTextScale: 0, evolutionTextAlpha: 0,
+  evolutionTextStr: "",
+  evolutionActive: false,
+  // seraphim sparkles
+  seraphimSparkles: [],
+  // frost sparkles around witch
+  frostSparkles: [],
+  // boss entrance per-type
+  entranceTick: 0,
 };
 
 // ============================================================
@@ -802,33 +814,83 @@ function drawAngel(x, y, scale, stage, frame) {
     case 3:
       drawSprite("archangel", row, col, x, y, scale, 1.0);
       break;
-    case 4:
-      // Draw archangel then golden overlay
-      drawSprite("archangel", row, col, x, y, scale, 1.0);
-      const FW = 48, FH = 64;
-      const cw = FW*scale, ch = FH*scale;
+    case 4: {
+      // Draw archangel then animated golden aura
+      const FW4 = 48, FH4 = 64;
+      const cw4 = FW4*scale, ch4 = FH4*scale;
+      const cx4 = x + cw4/2, cy4 = y + ch4/2;
+      const now4 = Date.now();
+      // Pulsing aura behind sprite
+      const pulse = 0.5 + 0.5*Math.sin(now4*0.003);
       ctx.save();
-      // Golden tint
-      ctx.globalCompositeOperation = "source-atop";
-      // This doesn't work on main ctx after drawSprite... use a temp canvas
-      // Instead draw the glow around the character
       ctx.globalCompositeOperation = "source-over";
-      // Aura
-      const cx2 = x + cw/2, cy2 = y + ch/2;
-      const aura = ctx.createRadialGradient(cx2, cy2, cw*0.1, cx2, cy2, cw*0.9);
-      aura.addColorStop(0, "rgba(255,215,0,0.35)");
-      aura.addColorStop(0.5, "rgba(255,200,50,0.12)");
-      aura.addColorStop(1, "rgba(255,180,0,0)");
-      ctx.fillStyle = aura;
-      ctx.fillRect(x - cw*0.4, y - ch*0.2, cw*1.8, ch*1.4);
-      // Glow border
-      ctx.shadowColor = "#ffd700"; ctx.shadowBlur = 20;
-      ctx.strokeStyle = "rgba(255,215,0,0.5)"; ctx.lineWidth = 3;
-      ctx.strokeRect(x + 2, y + 2, cw - 4, ch - 4);
+      // Outer soft glow
+      const aura4 = ctx.createRadialGradient(cx4, cy4-ch4*0.1, cw4*0.05, cx4, cy4-ch4*0.1, cw4*1.1);
+      aura4.addColorStop(0, `rgba(255,230,80,${0.28+0.14*pulse})`);
+      aura4.addColorStop(0.4, `rgba(255,200,0,${0.12+0.08*pulse})`);
+      aura4.addColorStop(1, "rgba(255,160,0,0)");
+      ctx.fillStyle = aura4;
+      ctx.fillRect(x - cw4*0.6, y - ch4*0.4, cw4*2.2, ch4*1.8);
+      // Light rays from top (3 rays)
+      ctx.globalAlpha = 0.18 + 0.1*pulse;
+      for (let ri=0; ri<3; ri++) {
+        const rAngle = -0.4 + ri*0.4;
+        const rayLen = ch4*2.2;
+        const rx0 = cx4 + Math.sin(rAngle)*20;
+        const ry0 = y - ch4*0.5;
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(rx0 - 8, ry0);
+        ctx.lineTo(rx0 + 8, ry0);
+        ctx.lineTo(rx0 + Math.sin(rAngle)*rayLen*0.8 + 40, ry0 - rayLen);
+        ctx.lineTo(rx0 + Math.sin(rAngle)*rayLen*0.8 - 40, ry0 - rayLen);
+        ctx.closePath();
+        const rayGrad = ctx.createLinearGradient(rx0, ry0, rx0, ry0 - rayLen);
+        rayGrad.addColorStop(0, `rgba(255,220,60,${0.35+0.15*pulse})`);
+        rayGrad.addColorStop(1, "rgba(255,220,60,0)");
+        ctx.fillStyle = rayGrad;
+        ctx.fill();
+        ctx.restore();
+      }
+      ctx.restore();
+      // Draw sprite on top of aura
+      drawSprite("archangel", row, col, x, y, scale, 1.0);
+      // Golden source-atop tint on a temp canvas
+      ctx.save();
+      ctx.globalCompositeOperation = "screen";
+      ctx.globalAlpha = 0.18 + 0.1*pulse;
+      ctx.fillStyle = "#ffd700";
+      ctx.fillRect(x, y, cw4, ch4);
+      ctx.restore();
+      // Update seraphim sparkles
+      if (!state.seraphimSparkles) state.seraphimSparkles = [];
+      if (Math.random() < 0.4) {
+        state.seraphimSparkles.push({
+          x: cx4 + (Math.random()-0.5)*cw4*1.4,
+          y: y + Math.random()*ch4*1.2,
+          vx: (Math.random()-0.5)*0.8,
+          vy: -0.5-Math.random()*1.2,
+          life: 1, decay: 0.03+Math.random()*0.02,
+          r: 1.5+Math.random()*2.5,
+          alpha: 1
+        });
+      }
+      // Draw and update seraphim sparkles
+      ctx.save();
+      for (let si=state.seraphimSparkles.length-1; si>=0; si--) {
+        const sp = state.seraphimSparkles[si];
+        sp.x += sp.vx; sp.y += sp.vy;
+        sp.alpha -= sp.decay;
+        if (sp.alpha <= 0) { state.seraphimSparkles.splice(si,1); continue; }
+        ctx.globalAlpha = sp.alpha;
+        ctx.fillStyle = "#ffd700";
+        ctx.shadowColor = "#ffe080"; ctx.shadowBlur = 8;
+        ctx.beginPath(); ctx.arc(sp.x, sp.y, sp.r, 0, Math.PI*2); ctx.fill();
+      }
       ctx.shadowBlur = 0;
-      // Sparkle particles (static for now, animated via particles system)
       ctx.restore();
       break;
+    }
   }
 }
 
@@ -1540,7 +1602,7 @@ function drawBossOnCanvas(level, x, y, scale) {
 
 function drawShadowWolf(x, y, scale) {
   const s = scale * 64; // size
-  const gx = x + s*0.2, gy = y + bossBobOffset;
+  const gx = x + s*0.2, gy = y;
   ctx.save();
   ctx.fillStyle="#1a0030";
   ctx.shadowColor="#8800ff"; ctx.shadowBlur=20;
@@ -1567,7 +1629,7 @@ function drawShadowWolf(x, y, scale) {
 
 function drawFrostWitch(x, y, scale) {
   const s = scale * 64;
-  const gx = x, gy = y + bossBobOffset - s*0.1; // hovering slightly
+  const gx = x, gy = y - s*0.1; // hovering slightly
   ctx.save();
   ctx.shadowColor="#88ccff"; ctx.shadowBlur=15;
   // Robes
@@ -1595,6 +1657,43 @@ function drawFrostWitch(x, y, scale) {
   ctx.beginPath(); ctx.moveTo(gx+s*0.8, gy+s*0.3); ctx.lineTo(gx+s*0.8, gy+s*0.9); ctx.stroke();
   ctx.shadowColor="#88ccff"; ctx.shadowBlur=12;
   ctx.fillStyle="#88eeff"; ctx.beginPath(); ctx.arc(gx+s*0.8, gy+s*0.24, s*0.07, 0, Math.PI*2); ctx.fill();
+  // Blue-ice tint overlay on the witch figure
+  ctx.globalCompositeOperation = "source-atop";
+  ctx.fillStyle = "rgba(100,180,255,0.3)";
+  ctx.fillRect(gx, gy, s, s);
+  ctx.globalCompositeOperation = "source-over";
+  ctx.restore();
+  // Frost sparkles around idle position
+  if (!state.frostSparkles) state.frostSparkles = [];
+  if (Math.random() < 0.35) {
+    state.frostSparkles.push({
+      x: gx + s*0.1 + Math.random()*s*0.8,
+      y: gy + s*0.1 + Math.random()*s*0.9,
+      vx: (Math.random()-0.5)*0.7,
+      vy: -0.3-Math.random()*0.8,
+      life: 1, decay: 0.025+Math.random()*0.025,
+      r: 1+Math.random()*2, alpha: 1
+    });
+  }
+  ctx.save();
+  for (let fi=state.frostSparkles.length-1; fi>=0; fi--) {
+    const fp = state.frostSparkles[fi];
+    fp.x += fp.vx; fp.y += fp.vy;
+    fp.alpha -= fp.decay;
+    if (fp.alpha <= 0) { state.frostSparkles.splice(fi,1); continue; }
+    ctx.globalAlpha = fp.alpha;
+    ctx.fillStyle = "#aaeeff";
+    ctx.shadowColor = "#88ccff"; ctx.shadowBlur = 6;
+    // Draw a tiny 4-pointed star / cross
+    ctx.beginPath();
+    ctx.moveTo(fp.x, fp.y - fp.r*1.6); ctx.lineTo(fp.x, fp.y + fp.r*1.6);
+    ctx.moveTo(fp.x - fp.r*1.6, fp.y); ctx.lineTo(fp.x + fp.r*1.6, fp.y);
+    ctx.strokeStyle = "#aaeeff"; ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.beginPath(); ctx.arc(fp.x, fp.y, fp.r*0.6, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.shadowBlur = 0;
   ctx.restore();
 }
 
@@ -1800,10 +1899,41 @@ function checkEvolution() {
 }
 
 function triggerEvolution(stage) {
+  const stageColors = ["#888888","#aaaaff","#88ccff","#ffd700","#ffaa00"];
+  const color = stageColors[stage] || "#ffd700";
   sfxPowerUp();
-  triggerFlash("rgba(255,215,0,0.6)", 200);
-  spawnParticleBurst(W*0.28, H*0.5, 30, "#ffd700", 6, 4);
-  spawnFloatText(STAGE_NAMES[stage].toUpperCase() + "!", W*0.28, H*0.35, "#ffd700", 26);
+
+  // Start smooth evolution transition
+  state.evolutionActive = true;
+  state.evolutionOldStage = stage - 1;
+  state.evolutionNewStage = stage;
+  state.evolutionFadeOut = 1.0;  // old stage fading out
+  state.evolutionFadeIn = 0.0;   // new stage fading in
+  state.evolutionFlash = 0;
+  state.evolutionTextStr = STAGE_NAMES[stage].toUpperCase() + "!";
+  state.evolutionTextScale = 0.1;
+  state.evolutionTextAlpha = 1.0;
+
+  // Brief pause then white flash
+  setTimeout(function() {
+    triggerFlash("rgba(255,255,255,0.9)", 250);
+    state.evolutionFlash = 1; // signal flash happened
+  }, 300);
+
+  // Burst in themed color
+  const burstColor = color;
+  setTimeout(function() {
+    spawnParticleBurst(W*0.28, H*0.45, 40, burstColor, 7, 5);
+    spawnParticleBurst(W*0.28, H*0.55, 20, "#ffffff", 4, 3);
+  }, 350);
+
+  // After 1.2s, fade old sprite out + new sprite fades in (done via evolutionFadeOut/In in renderTraining)
+  // Text pops up immediately
+  setTimeout(function() {
+    state.evolutionActive = false;
+    state.evolutionFadeOut = 0;
+    state.evolutionFadeIn = 1;
+  }, 1200);
 }
 
 // ============================================================
@@ -1883,6 +2013,15 @@ function startTraining(levelIdx) {
   state.questionsAnswered = 0;
   state.answerLocked = false;
   state.trainingTimes = [];
+  state.evolutionActive = false;
+  state.evolutionTextStr = "";
+  state.evolutionTextAlpha = 0;
+  state.evolutionTextScale = 0;
+  state.evolutionFadeOut = 0;
+  state.evolutionFadeIn = 0;
+  state.evolutionFlash = 0;
+  state.seraphimSparkles = [];
+  state.frostSparkles = [];
 
   state.questionQueue = generateQuestionQueue(levelIdx);
 
@@ -2069,6 +2208,8 @@ function startBattle() {
   state.angelKnockback = 0; state.bossKnockback = 0;
   state.angelFlash = 0; state.bossFlash = 0;
   state.angelRise = 0;
+  state.frostSparkles = [];
+  state.seraphimSparkles = [];
 
   // Perfect training: no wrong answers
   state.perfectTraining = (state.wrongAnswers.length === 0);
@@ -2103,17 +2244,17 @@ function startBattle() {
   if (!bgCache[lvl]) bgCache[lvl] = createBgCanvas(lvl);
   resetAmbients(lvl);
 
-  // Entrance sequence: boss slides in, then start first question
+  // Entrance sequence: boss enters with unique animation, then start first question
   sfxBattleStart();
   triggerFlash("rgba(0,0,0,0.8)", 400);
-
+  state.entranceTick = 0;
   state.battleAnswerLocked = true;
   setTimeout(function() {
     state.bossEntrancePhase = 1; // entrance animation begins
     setTimeout(function() {
       state.bossEntrancePhase = 2; // arrived
       showBattleQuestion();
-    }, 1200);
+    }, 1500);
   }, 600);
 }
 
@@ -2586,7 +2727,53 @@ function renderTraining() {
   // Vertically: clamp between HUD bottom (55px) and question area top (~370px)
   const topPad = 55, botPad = H - 125;
   const ay = Math.max(topPad, topPad + (botPad - topPad - angelH) * 0.4) + angelBobOffset;
-  drawAngel(ax, ay, scale, state.angelStage, angelFrame);
+  // Evolution transition rendering
+  if (state.evolutionActive) {
+    if (state.evolutionFlash === 0) {
+      // Pre-flash: old sprite fading out
+      state.evolutionFadeOut = Math.max(0, state.evolutionFadeOut - 0.05);
+      if (state.evolutionFadeOut > 0) {
+        ctx.save(); ctx.globalAlpha = state.evolutionFadeOut;
+        drawAngel(ax, ay, scale, state.evolutionOldStage, angelFrame);
+        ctx.restore();
+      }
+      // Also start fading in new sprite gently
+      if (state.evolutionFadeOut < 0.3) {
+        const eIn = Math.min(1, (0.3 - state.evolutionFadeOut) / 0.3);
+        ctx.save(); ctx.globalAlpha = eIn * 0.5;
+        drawAngel(ax, ay, scale, state.evolutionNewStage, angelFrame);
+        ctx.restore();
+      }
+    } else {
+      // Post-flash: new sprite fading in
+      state.evolutionFadeIn = Math.min(1, state.evolutionFadeIn + 0.05);
+      ctx.save(); ctx.globalAlpha = state.evolutionFadeIn;
+      drawAngel(ax, ay, scale, state.evolutionNewStage, angelFrame);
+      ctx.restore();
+    }
+  } else {
+    drawAngel(ax, ay, scale, state.angelStage, angelFrame);
+  }
+
+  // Evolution text — scales up and fades
+  if (state.evolutionTextAlpha > 0 && state.evolutionTextStr) {
+    state.evolutionTextScale = Math.min(1.8, state.evolutionTextScale + 0.08);
+    if (state.evolutionTextScale >= 1.8) {
+      state.evolutionTextAlpha = Math.max(0, state.evolutionTextAlpha - 0.015);
+    }
+    const evStage = state.evolutionNewStage;
+    const evColor = ["#888888","#aaaaff","#88ccff","#ffd700","#ffaa00"][evStage] || "#ffd700";
+    const evSize = Math.round(22 * state.evolutionTextScale);
+    ctx.save();
+    ctx.globalAlpha = state.evolutionTextAlpha;
+    ctx.font = `bold ${evSize}px Segoe UI`;
+    ctx.textAlign = "center";
+    ctx.fillStyle = evColor;
+    ctx.shadowColor = evColor; ctx.shadowBlur = 20;
+    ctx.fillText(state.evolutionTextStr, ax + angelW*0.5, ay - 20);
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  }
 
   // Stage name below angel
   const stageCol = ["#888888","#aaaaff","#88ccff","#ffd700","#ffaa00"][state.angelStage];
@@ -2631,15 +2818,131 @@ function renderBattle() {
   const bossW = isKraken ? 96*bossScale : 48*bossScale;
   const bossH = isKraken ? 128*bossScale : 64*bossScale;
 
-  // Boss entrance animation (slides from right)
+  // Boss entrance animation — unique per boss
   let drawBossX = state.bossX;
+  let drawBossY = state.bossY;
+  let drawBossAlpha = 1;
+  let drawEntranceTrail = false;
   if (state.bossEntrancePhase === 1) {
-    // Lerp from off-screen right to bossX over ~60 ticks
-    if (!state._entranceTick) state._entranceTick = 0;
-    state._entranceTick++;
-    const t = Math.min(1, state._entranceTick / 45);
+    state.entranceTick = (state.entranceTick || 0) + 1;
+    const ENTRANCE_DURATION = 55; // ticks
+    const t = Math.min(1, state.entranceTick / ENTRANCE_DURATION);
     const ease = 1 - Math.pow(1-t, 3);
-    drawBossX = (W + bossW) + (state.bossX - (W + bossW)) * ease;
+    switch(lvl) {
+      case 0: {
+        // Shadow Wolf: slides in fast from right with shadow trail
+        drawBossX = (W + bossW) + (state.bossX - (W + bossW)) * ease;
+        drawEntranceTrail = true;
+        // Spawn shadow trail particles
+        if (state.entranceTick % 2 === 0 && t < 1) {
+          for (let st2=0; st2<3; st2++) {
+            particles.push({
+              x: drawBossX + bossW*0.5 + (Math.random()-0.5)*20,
+              y: state.bossY + bossH*0.5 + (Math.random()-0.5)*30,
+              vx: 2+Math.random()*2, vy: (Math.random()-0.5)*1,
+              life:1, decay:0.07, r:4+Math.random()*6,
+              color:"#6600cc", alpha:0.6
+            });
+          }
+        }
+        break;
+      }
+      case 1: {
+        // Frost Witch: floats down from above with ice sparkles
+        const startY = -bossH - 20;
+        drawBossY = startY + (state.bossY - startY) * ease;
+        drawBossAlpha = 0.3 + 0.7 * t;
+        if (state.entranceTick % 3 === 0 && t < 1) {
+          for (let si=0; si<4; si++) {
+            particles.push({
+              x: state.bossX + Math.random()*bossW,
+              y: drawBossY + Math.random()*bossH,
+              vx: (Math.random()-0.5)*1.5, vy: 0.5+Math.random(),
+              life:1, decay:0.04, r:1.5+Math.random()*2,
+              color: Math.random()<0.5 ? "#aaeeff" : "#88ccff", alpha:1
+            });
+          }
+        }
+        break;
+      }
+      case 2: {
+        // Kraken Lord: tentacles rise from bottom, then sprite slides up
+        if (t < 0.5) {
+          // Tentacles rising phase — draw tentacles, boss off-screen below
+          drawBossY = H + bossH;
+          // Tentacles are drawn as thick lines rising from bottom
+          const tPhase = t / 0.5; // 0-1 over first half
+          ctx.save();
+          ctx.strokeStyle = "#2266aa";
+          ctx.lineWidth = 8;
+          ctx.shadowColor = "#44aaff"; ctx.shadowBlur = 15;
+          ctx.globalAlpha = 0.7;
+          const tentacleX = [state.bossX + bossW*0.15, state.bossX + bossW*0.4, state.bossX + bossW*0.65, state.bossX + bossW*0.9];
+          tentacleX.forEach(function(tx2, ti) {
+            const tentLen = Math.max(10, H * tPhase * 0.85);
+            const waveOffset = Math.sin(Date.now()*0.005 + ti) * 15;
+            ctx.beginPath();
+            ctx.moveTo(tx2, H);
+            ctx.quadraticCurveTo(tx2 + waveOffset, H - tentLen*0.5, tx2 - waveOffset*0.5, H - tentLen);
+            ctx.stroke();
+          });
+          ctx.restore();
+        } else {
+          // Slide up phase
+          const tUp = (t - 0.5) / 0.5;
+          const easeUp = 1 - Math.pow(1-tUp, 3);
+          drawBossY = (H + bossH) + (state.bossY - (H + bossH)) * easeUp;
+        }
+        break;
+      }
+      case 3: {
+        // Devil Queen: fire erupts at boss position, then sprite fades in
+        if (t < 0.55) {
+          drawBossAlpha = 0;
+          // Fire particle eruption
+          if (state.entranceTick % 2 === 0) {
+            for (let fi=0; fi<5; fi++) {
+              particles.push({
+                x: state.bossX + bossW*0.5 + (Math.random()-0.5)*bossW*0.8,
+                y: state.bossY + bossH*0.8 + Math.random()*20,
+                vx: (Math.random()-0.5)*3, vy: -(2+Math.random()*4),
+                life:1, decay:0.025+Math.random()*0.02,
+                r:3+Math.random()*5,
+                color: Math.random()<0.5 ? "#ff4400" : "#ff8800", alpha:1
+              });
+            }
+          }
+        } else {
+          // Fade in
+          drawBossAlpha = (t - 0.55) / 0.45;
+        }
+        break;
+      }
+      case 4: {
+        // Violet Avenger: dark energy motes converge, sprite materializes
+        if (t < 0.6) {
+          drawBossAlpha = 0;
+          // Motes converging inward
+          if (state.entranceTick % 2 === 0) {
+            const angle = Math.random()*Math.PI*2;
+            const dist = 100 + Math.random()*150;
+            particles.push({
+              x: state.bossX + bossW*0.5 + Math.cos(angle)*dist,
+              y: state.bossY + bossH*0.5 + Math.sin(angle)*dist,
+              vx: -Math.cos(angle)*(2+Math.random()*2),
+              vy: -Math.sin(angle)*(2+Math.random()*2),
+              life:1, decay:0.025+Math.random()*0.02,
+              r:2.5+Math.random()*3.5,
+              color: Math.random()<0.5 ? "#8800cc" : "#ff00aa", alpha:1
+            });
+          }
+        } else {
+          // Materialize with shimmer
+          drawBossAlpha = Math.min(1, (t - 0.6) / 0.4);
+        }
+        break;
+      }
+    }
     if (t >= 1) state.bossEntrancePhase = 2;
   }
   if (state.bossEntrancePhase === 0) {
@@ -2652,7 +2955,7 @@ function renderBattle() {
 
   // Boss with knockback
   const bx2 = drawBossX + (state.bossKnockback > 0 ? state.bossKnockback : 0);
-  const by2 = state.bossY + bossBobOffset;
+  const by2 = drawBossY + bossBobOffset;
 
   // Decay knockback
   if (state.angelKnockback > 0) state.angelKnockback = Math.max(0, state.angelKnockback - 1.5);
@@ -2694,11 +2997,14 @@ function renderBattle() {
     const bFlash = state.bossFlash > 0;
     if (bFlash) {
       ctx.save(); ctx.filter = "brightness(4)";
+      ctx.globalAlpha = drawBossAlpha;
       drawBossOnCanvas(lvl, bx2, by2, bossScale);
       ctx.restore();
       state.bossFlash--;
     } else {
+      ctx.save(); ctx.globalAlpha = drawBossAlpha;
       drawBossOnCanvas(lvl, bx2, by2, bossScale);
+      ctx.restore();
     }
   } else if (state.bossDefeated) {
     // Boss dissolving
