@@ -2264,6 +2264,220 @@ function renderEffects() {
         break;
       }
 
+      // ---- STAGE 1 LIGHT BOLT: short beam ----
+      case "lightBolt": {
+        const { ax, ay, bx, by } = p2;
+        const reach = Math.min(1, t / 0.55);
+        const alpha = t < 0.4 ? 1 : 1 - (t - 0.4) / 0.6;
+        const ex = ax + (bx - ax) * reach;
+        const ey = ay + (by - ay) * reach;
+        // Outer blue-white glow
+        const bGrad = ctx.createLinearGradient(ax, ay, ex, ey);
+        bGrad.addColorStop(0, "rgba(150,200,255,0)");
+        bGrad.addColorStop(0.15, "rgba(180,220,255,0.5)");
+        bGrad.addColorStop(0.85, "rgba(255,255,255,0.7)");
+        bGrad.addColorStop(1, "rgba(255,255,255,0)");
+        ctx.strokeStyle = bGrad;
+        ctx.lineWidth = 10;
+        ctx.lineCap = "round";
+        ctx.globalAlpha = alpha * 0.55;
+        ctx.shadowColor = "#aaddff"; ctx.shadowBlur = 16;
+        ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(ex, ey); ctx.stroke();
+        // Core line
+        ctx.strokeStyle = "rgba(255,255,255,0.9)";
+        ctx.lineWidth = 3;
+        ctx.globalAlpha = alpha;
+        ctx.shadowColor = "#ffffff"; ctx.shadowBlur = 8;
+        ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(ex, ey); ctx.stroke();
+        break;
+      }
+
+      // ---- STAGE 1: small flash on boss ----
+      case "boltImpact": {
+        const { x, y } = p2;
+        const r = t * 22;
+        const alpha = (1 - t) * 0.85;
+        ctx.globalAlpha = alpha;
+        const iGrad = ctx.createRadialGradient(x, y, 0, x, y, r);
+        iGrad.addColorStop(0, "rgba(255,255,255,0.95)");
+        iGrad.addColorStop(0.4, "rgba(180,220,255,0.6)");
+        iGrad.addColorStop(1, "rgba(100,180,255,0)");
+        ctx.fillStyle = iGrad;
+        ctx.shadowColor = "#aaddff"; ctx.shadowBlur = 14;
+        ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+        break;
+      }
+
+      // ---- STAGE 2 HOLY ARROW: arrow shape travelling to boss ----
+      case "holyArrow": {
+        const { ax, ay, bx, by } = p2;
+        const reach = Math.min(1, t / 0.65);
+        const alpha = t < 0.55 ? 1 : 1 - (t - 0.55) / 0.45;
+        const dx = bx - ax, dy = by - ay;
+        const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+        const ux = dx / dist, uy = dy / dist;
+        const perpX = -uy, perpY = ux;
+        // Arrow tip position
+        const tipX = ax + dx * reach;
+        const tipY = ay + dy * reach;
+        // Arrow body length (shorter than full distance so it looks like a projectile)
+        const bodyLen = Math.min(dist * reach, 55);
+        const tailX = tipX - ux * bodyLen;
+        const tailY = tipY - uy * bodyLen;
+        ctx.globalAlpha = alpha;
+        // Glow outer
+        ctx.strokeStyle = "#88aaff";
+        ctx.lineWidth = 10;
+        ctx.lineCap = "round";
+        ctx.shadowColor = "#aaddff"; ctx.shadowBlur = 20;
+        ctx.beginPath(); ctx.moveTo(tailX, tailY); ctx.lineTo(tipX, tipY); ctx.stroke();
+        // White-blue core body
+        ctx.strokeStyle = "#ddeeff";
+        ctx.lineWidth = 4;
+        ctx.shadowColor = "#ffffff"; ctx.shadowBlur = 10;
+        ctx.beginPath(); ctx.moveTo(tailX, tailY); ctx.lineTo(tipX, tipY); ctx.stroke();
+        // Arrow head (triangle)
+        const headLen = 16;
+        const headW = 9;
+        ctx.fillStyle = "#ffffff";
+        ctx.strokeStyle = "#88aaff";
+        ctx.lineWidth = 1.5;
+        ctx.shadowColor = "#aaddff"; ctx.shadowBlur = 14;
+        ctx.beginPath();
+        ctx.moveTo(tipX + ux * headLen * 0.5, tipY + uy * headLen * 0.5);
+        ctx.lineTo(tipX - ux * headLen + perpX * headW, tipY - uy * headLen + perpY * headW);
+        ctx.lineTo(tipX - ux * headLen * 0.3, tipY - uy * headLen * 0.3);
+        ctx.lineTo(tipX - ux * headLen - perpX * headW, tipY - uy * headLen - perpY * headW);
+        ctx.closePath();
+        ctx.fill(); ctx.stroke();
+        break;
+      }
+
+      // ---- STAGE 3 SACRED LANCE: golden spear ----
+      case "sacredLance": {
+        const { ax, ay, bx, by } = p2;
+        const reach = Math.min(1, t / 0.7);
+        const alpha = t < 0.5 ? 1 : 1 - (t - 0.5) / 0.5;
+        const dx = bx - ax, dy = by - ay;
+        const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+        const ux = dx / dist, uy = dy / dist;
+        const perpX = -uy, perpY = ux;
+        const tipX = ax + dx * reach;
+        const tipY = ay + dy * reach;
+        const bodyLen = Math.min(dist * reach, 80);
+        const tailX = tipX - ux * bodyLen;
+        const tailY = tipY - uy * bodyLen;
+        ctx.globalAlpha = alpha;
+        // Outer golden glow
+        ctx.strokeStyle = "rgba(255,200,0,0.5)";
+        ctx.lineWidth = 22;
+        ctx.lineCap = "round";
+        ctx.shadowColor = "#ffd700"; ctx.shadowBlur = 28;
+        ctx.beginPath(); ctx.moveTo(tailX, tailY); ctx.lineTo(tipX, tipY); ctx.stroke();
+        // Mid bright gold
+        ctx.strokeStyle = "#ffd700";
+        ctx.lineWidth = 10;
+        ctx.shadowBlur = 16;
+        ctx.beginPath(); ctx.moveTo(tailX, tailY); ctx.lineTo(tipX, tipY); ctx.stroke();
+        // Inner hot white core
+        ctx.strokeStyle = "#fffff0";
+        ctx.lineWidth = 3.5;
+        ctx.shadowColor = "#ffffff"; ctx.shadowBlur = 10;
+        ctx.beginPath(); ctx.moveTo(tailX, tailY); ctx.lineTo(tipX, tipY); ctx.stroke();
+        // Lance tip (elongated diamond)
+        const tipLen = 22;
+        const tipW = 7;
+        ctx.fillStyle = "#ffffff";
+        ctx.strokeStyle = "#ffd700";
+        ctx.lineWidth = 1.5;
+        ctx.shadowColor = "#ffd700"; ctx.shadowBlur = 18;
+        ctx.beginPath();
+        ctx.moveTo(tipX + ux * tipLen * 0.6, tipY + uy * tipLen * 0.6);
+        ctx.lineTo(tipX - ux * tipLen * 0.2 + perpX * tipW, tipY - uy * tipLen * 0.2 + perpY * tipW);
+        ctx.lineTo(tipX - ux * tipLen, tipY - uy * tipLen);
+        ctx.lineTo(tipX - ux * tipLen * 0.2 - perpX * tipW, tipY - uy * tipLen * 0.2 - perpY * tipW);
+        ctx.closePath();
+        ctx.fill(); ctx.stroke();
+        break;
+      }
+
+      // ---- STAGE 3 SACRED LANCE afterglow trail ----
+      case "sacredLanceTrail": {
+        const { ax, ay, bx, by } = p2;
+        const alpha = (1 - t) * 0.6;
+        const trailGrad = ctx.createLinearGradient(ax, ay, bx, by);
+        trailGrad.addColorStop(0, "rgba(255,200,0,0)");
+        trailGrad.addColorStop(0.2, `rgba(255,180,0,${alpha * 0.4})`);
+        trailGrad.addColorStop(0.8, `rgba(255,215,0,${alpha * 0.35})`);
+        trailGrad.addColorStop(1, "rgba(255,215,0,0)");
+        ctx.strokeStyle = trailGrad;
+        ctx.lineWidth = 8 * (1 - t * 0.6);
+        ctx.lineCap = "round";
+        ctx.globalAlpha = 1;
+        ctx.shadowColor = "#ffd700"; ctx.shadowBlur = 12;
+        ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+        break;
+      }
+
+      // ---- STAGE 4 DIVINE BARRAGE: blazing layered beam with lightning arcs ----
+      case "divineBarrage": {
+        const { ax, ay, bx, by } = p2;
+        const reach = Math.min(1, t / 0.55);
+        const alpha = t < 0.45 ? 1 : 1 - (t - 0.45) / 0.55;
+        const ex = ax + (bx - ax) * reach;
+        const ey = ay + (by - ay) * reach;
+        // Layer 1: wide outer gold glow
+        const outerGrad = ctx.createLinearGradient(ax, ay, ex, ey);
+        outerGrad.addColorStop(0, "rgba(255,180,0,0)");
+        outerGrad.addColorStop(0.1, "rgba(255,180,0,0.45)");
+        outerGrad.addColorStop(0.9, "rgba(255,215,0,0.5)");
+        outerGrad.addColorStop(1, "rgba(255,215,0,0)");
+        ctx.strokeStyle = outerGrad;
+        ctx.lineWidth = 32;
+        ctx.lineCap = "round";
+        ctx.globalAlpha = alpha * 0.55;
+        ctx.shadowColor = "#ffd700"; ctx.shadowBlur = 35;
+        ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(ex, ey); ctx.stroke();
+        // Layer 2: medium bright gold
+        ctx.strokeStyle = "#ffd700";
+        ctx.lineWidth = 14;
+        ctx.globalAlpha = alpha * 0.85;
+        ctx.shadowColor = "#ffcc00"; ctx.shadowBlur = 22;
+        ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(ex, ey); ctx.stroke();
+        // Layer 3: inner white-hot core
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 5;
+        ctx.globalAlpha = alpha;
+        ctx.shadowColor = "#ffffff"; ctx.shadowBlur = 14;
+        ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(ex, ey); ctx.stroke();
+        // Mini lightning arcs crackling along beam
+        const dx2 = ex - ax, dy2 = ey - ay;
+        const bdist = Math.sqrt(dx2*dx2 + dy2*dy2) || 1;
+        const bux = dx2 / bdist, buy = dy2 / bdist;
+        const perpBx = -buy, perpBy = bux;
+        const numArcs = 5;
+        ctx.globalAlpha = alpha * 0.8;
+        ctx.strokeStyle = "#fffacd";
+        ctx.lineWidth = 1.5;
+        ctx.shadowColor = "#ffffff"; ctx.shadowBlur = 8;
+        const arcSeed = Math.floor(t * 18);
+        for (let ai = 0; ai < numArcs; ai++) {
+          const arcFrac = (ai + 0.5) / numArcs;
+          if (arcFrac > reach + 0.05) continue;
+          const rng2 = (n) => { const v = Math.sin(arcSeed * 31.7 + ai * 17.3 + n * 73.1) * 43758.5453; return v - Math.floor(v); };
+          const cx2 = ax + dx2 * arcFrac;
+          const cy2 = ay + dy2 * arcFrac;
+          const arcLen = 10 + rng2(0) * 10;
+          const side = rng2(1) > 0.5 ? 1 : -1;
+          ctx.beginPath();
+          ctx.moveTo(cx2 + perpBx * side * arcLen * 0.5, cy2 + perpBy * side * arcLen * 0.5);
+          ctx.lineTo(cx2, cy2);
+          ctx.lineTo(cx2 + perpBx * (-side) * arcLen * (0.3 + rng2(2) * 0.4), cy2 + perpBy * (-side) * arcLen * (0.3 + rng2(2) * 0.4));
+          ctx.stroke();
+        }
+        break;
+      }
+
       // ---- DIVINE SHIELD shatter: shockwave ring ----
       case "shieldShatterRing": {
         const { cx: srx, cy: sry } = p2;
@@ -2605,13 +2819,37 @@ function doPlayerShoot() {
   const bossCXP = state.bossX + (isKrakenP ? 96*1.4 : 48*3)*0.5;
   const bossCYP = state.bossY + (isKrakenP ? 128*1.4 : 64*3)*0.5;
 
+  const angelX = state.angelX + 48*3;
+  const angelY = state.angelY + 64*1.5;
+
   sfxAttackHit();
-  spawnLightBeam(
-    state.angelX + 48*3, state.angelY + 64*1.5,
-    state.bossX, state.bossY + 64*1.5
-  );
-  state.bossFlash = 4;
-  state.bossKnockback = 6;
+
+  switch (state.angelStage) {
+    case 0: spawnFeebleSpark(angelX, angelY, bossCXP, bossCYP); break;
+    case 1: spawnLightBolt(angelX, angelY, bossCXP, bossCYP); break;
+    case 2: spawnHolyArrow(angelX, angelY, bossCXP, bossCYP); break;
+    case 3: spawnSacredLance(angelX, angelY, bossCXP, bossCYP); break;
+    case 4: spawnDivineBarrage(angelX, angelY, bossCXP, bossCYP); break;
+    default: spawnLightBeam(angelX, angelY, bossCXP, bossCYP); break;
+  }
+
+  if (state.angelStage <= 1) {
+    state.bossFlash = 2;
+    state.bossKnockback = 3;
+  } else if (state.angelStage === 2) {
+    state.bossFlash = 4;
+    state.bossKnockback = 5;
+  } else if (state.angelStage === 3) {
+    state.bossFlash = 5;
+    state.bossKnockback = 7;
+    triggerShake(1);
+  } else if (state.angelStage === 4) {
+    state.bossFlash = 6;
+    state.bossKnockback = 8;
+    triggerShake(2);
+    triggerFlash("rgba(255,215,0,0.08)", 30);
+  }
+
   state.bossHP -= 1;
   state.levelScore += 30;
   spawnFloatText("-1", bossCXP - 20, state.bossY + 20, "#aaddff", 16);
@@ -2867,6 +3105,177 @@ function spawnLightBeam(ax, ay, bx2, by2) {
   }
   // Brief white flash on boss
   addEffect("screenTint", { color: "#aaddff" }, 400);
+}
+
+// ---- STAGE 0: Feeble Spark — tiny, pathetic, barely reaches boss ----
+function spawnFeebleSpark(ax, ay, bx2, by2) {
+  const count = 5 + Math.floor(Math.random() * 4);
+  for (let i = 0; i < count; i++) {
+    const t2 = i / (count - 1);
+    const wobble = (Math.random() - 0.5) * 18;
+    const nx = -(by2 - ay), ny = (bx2 - ax);
+    const len = Math.sqrt(nx*nx + ny*ny) || 1;
+    particles.push({
+      x: ax + (bx2 - ax) * t2 + (nx/len) * wobble,
+      y: ay + (by2 - ay) * t2 + (ny/len) * wobble,
+      vx: (Math.random() - 0.5) * 0.6,
+      vy: (Math.random() - 0.5) * 0.6,
+      life: 0.55 + Math.random() * 0.2,
+      decay: 0.04 + Math.random() * 0.04,
+      r: 1.5 + Math.random() * 1.5,
+      color: Math.random() < 0.5 ? "#cccccc" : "#e8e8ff",
+      alpha: 0.35 + Math.random() * 0.25,
+      glow: null
+    });
+  }
+}
+
+// ---- STAGE 1: Light Bolt — short bright bolt ----
+function spawnLightBolt(ax, ay, bx2, by2) {
+  addEffect("lightBolt", { ax, ay, bx: bx2, by: by2 }, 200);
+  const count = 15 + Math.floor(Math.random() * 6);
+  for (let i = 0; i < count; i++) {
+    const t2 = Math.random();
+    const spread = (Math.random() - 0.5) * 10;
+    const nx = -(by2 - ay), ny = (bx2 - ax);
+    const len = Math.sqrt(nx*nx + ny*ny) || 1;
+    particles.push({
+      x: ax + (bx2 - ax) * t2 + (nx/len) * spread,
+      y: ay + (by2 - ay) * t2 + (ny/len) * spread,
+      vx: (Math.random() - 0.5) * 1.2,
+      vy: (Math.random() - 0.5) * 1.2,
+      life: 1, decay: 0.06 + Math.random() * 0.04,
+      r: 1.5 + Math.random() * 2,
+      color: Math.random() < 0.6 ? "#ffffff" : "#99ccff",
+      alpha: 0.8, glow: "#aaddff"
+    });
+  }
+  // Small flash on boss impact
+  addEffect("boltImpact", { x: bx2, y: by2 }, 200);
+}
+
+// ---- STAGE 2: Holy Arrow — glowing blue-white arrow ----
+function spawnHolyArrow(ax, ay, bx2, by2) {
+  addEffect("holyArrow", { ax, ay, bx: bx2, by: by2 }, 300);
+  // Sparkle trail
+  const count = 18;
+  for (let i = 0; i < count; i++) {
+    const t2 = Math.random();
+    const spread = (Math.random() - 0.5) * 14;
+    const nx = -(by2 - ay), ny = (bx2 - ax);
+    const len = Math.sqrt(nx*nx + ny*ny) || 1;
+    const delay = t2 * 180;
+    setTimeout(function() {
+      particles.push({
+        x: ax + (bx2 - ax) * t2 + (nx/len) * spread,
+        y: ay + (by2 - ay) * t2 + (ny/len) * spread,
+        vx: (Math.random() - 0.5) * 1.5,
+        vy: -Math.random() * 1.5,
+        life: 1, decay: 0.04 + Math.random() * 0.03,
+        r: 2 + Math.random() * 2.5,
+        color: Math.random() < 0.65 ? "#aaddff" : "#ffffff",
+        alpha: 1, glow: "#88aaff"
+      });
+    }, delay);
+  }
+  // Blue-white impact burst
+  setTimeout(function() {
+    spawnParticleBurst(bx2, by2, 14, "#aaddff", 4, 3);
+    spawnParticleBurst(bx2, by2, 6, "#ffffff", 3, 2);
+  }, 280);
+}
+
+// ---- STAGE 3: Sacred Lance — golden lance of light ----
+function spawnSacredLance(ax, ay, bx2, by2) {
+  addEffect("sacredLance", { ax, ay, bx: bx2, by: by2 }, 250);
+  // Afterglow trail
+  addEffect("sacredLanceTrail", { ax, ay, bx: bx2, by: by2 }, 500);
+  // Golden sparkles along path
+  const count = 22;
+  for (let i = 0; i < count; i++) {
+    const t2 = Math.random();
+    const spread = (Math.random() - 0.5) * 18;
+    const nx = -(by2 - ay), ny = (bx2 - ax);
+    const len = Math.sqrt(nx*nx + ny*ny) || 1;
+    const delay = t2 * 160;
+    setTimeout(function() {
+      particles.push({
+        x: ax + (bx2 - ax) * t2 + (nx/len) * spread,
+        y: ay + (by2 - ay) * t2 + (ny/len) * spread,
+        vx: (Math.random() - 0.5) * 2,
+        vy: -Math.random() * 2 - 0.5,
+        life: 1, decay: 0.03 + Math.random() * 0.025,
+        r: 2 + Math.random() * 3,
+        color: Math.random() < 0.6 ? "#ffd700" : "#fffaaa",
+        alpha: 1, glow: "#ffd700"
+      });
+    }, delay);
+  }
+  // Impact: golden starburst + ember drift
+  setTimeout(function() {
+    addEffect("starBurst", { x: bx2, y: by2, color: "#ffd700" }, 500);
+    spawnParticleBurst(bx2, by2, 20, "#ffd700", 6, 4);
+    spawnParticleBurst(bx2, by2, 10, "#ffffff", 4, 2);
+    // Ember particles drift upward
+    for (let i = 0; i < 15; i++) {
+      particles.push({
+        x: bx2 + (Math.random() - 0.5) * 50,
+        y: by2 + (Math.random() - 0.5) * 30,
+        vx: (Math.random() - 0.5) * 1.5,
+        vy: -(1 + Math.random() * 2.5),
+        life: 1, decay: 0.012 + Math.random() * 0.012,
+        r: 2 + Math.random() * 3,
+        color: Math.random() < 0.5 ? "#ffd700" : "#ffaa00",
+        alpha: 1, glow: "#ffcc00"
+      });
+    }
+  }, 230);
+}
+
+// ---- STAGE 4: Divine Barrage — blazing golden beam ----
+function spawnDivineBarrage(ax, ay, bx2, by2) {
+  addEffect("divineBarrage", { ax, ay, bx: bx2, by: by2 }, 400);
+  // Spiraling orbital particles
+  const orbCount = 20;
+  for (let i = 0; i < orbCount; i++) {
+    const t2 = Math.random();
+    const nx = -(by2 - ay), ny = (bx2 - ax);
+    const len = Math.sqrt(nx*nx + ny*ny) || 1;
+    const orbitOffset = (Math.sin(t2 * Math.PI * 6 + i) * 22);
+    const delay = t2 * 200;
+    setTimeout(function() {
+      particles.push({
+        x: ax + (bx2 - ax) * t2 + (nx/len) * orbitOffset,
+        y: ay + (by2 - ay) * t2 + (ny/len) * orbitOffset,
+        vx: (nx/len) * (1.5 + Math.random()),
+        vy: (ny/len) * (1.5 + Math.random()) - 1,
+        life: 1, decay: 0.03 + Math.random() * 0.02,
+        r: 2.5 + Math.random() * 3,
+        color: Math.random() < 0.5 ? "#ffd700" : (Math.random() < 0.5 ? "#ffeeaa" : "#ffffff"),
+        alpha: 1, glow: "#ffd700"
+      });
+    }, delay);
+  }
+  // Impact: explosion + shockwave + rays + ember lingering
+  setTimeout(function() {
+    addEffect("starBurst", { x: bx2, y: by2, color: "#ffd700" }, 600);
+    addEffect("shockwave", { x: bx2, y: by2, color: "#ffd700" }, 700);
+    spawnParticleBurst(bx2, by2, 40, "#ffd700", 9, 5);
+    spawnParticleBurst(bx2, by2, 20, "#ffffff", 6, 3);
+    spawnParticleBurst(bx2, by2, 15, "#ffcc00", 5, 2);
+    for (let i = 0; i < 25; i++) {
+      particles.push({
+        x: bx2 + (Math.random() - 0.5) * 70,
+        y: by2 + (Math.random() - 0.5) * 50,
+        vx: (Math.random() - 0.5) * 2.5,
+        vy: -(1.5 + Math.random() * 3.5),
+        life: 1, decay: 0.01 + Math.random() * 0.01,
+        r: 2 + Math.random() * 4,
+        color: Math.random() < 0.4 ? "#ffd700" : (Math.random() < 0.5 ? "#ffaa00" : "#fffaaa"),
+        alpha: 1, glow: "#ffd700"
+      });
+    }
+  }, 370);
 }
 
 function spawnHolySlash(ax, ay, bx2, by2) {
