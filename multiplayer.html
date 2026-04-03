@@ -1,0 +1,2428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Angel vs Devil — Multiplayer</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body {
+  width:100%; height:100%; overflow:hidden;
+  background:#000; font-family:'Segoe UI',system-ui,sans-serif;
+}
+#game-wrap {
+  position:relative; margin:auto;
+  display:flex; align-items:center; justify-content:center;
+  width:100vw; height:100vh;
+}
+#game-container {
+  position:relative; overflow:hidden;
+  image-rendering:pixelated;
+}
+#game-canvas {
+  display:block; image-rendering:pixelated;
+  position:absolute; top:0; left:0;
+}
+#flash-overlay {
+  position:absolute; top:0; left:0; width:100%; height:100%;
+  pointer-events:none; opacity:0;
+  transition:opacity 0.05s; background:white;
+}
+#float-container {
+  position:absolute; top:0; left:0; width:100%; height:100%;
+  pointer-events:none; overflow:hidden;
+}
+
+/* ============================================================
+   LOBBY SCREEN
+   ============================================================ */
+#lobby-screen {
+  position:absolute; top:0; left:0; width:100%; height:100%;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  background:transparent; pointer-events:auto; z-index:10;
+}
+#lobby-title {
+  font-size:38px; font-weight:900; letter-spacing:3px; color:#ffd700;
+  text-shadow:0 0 30px rgba(255,215,0,0.7), 0 4px 8px rgba(0,0,0,0.9);
+  text-align:center; margin-bottom:4px;
+}
+#lobby-sub {
+  font-size:13px; color:rgba(255,255,255,0.5); letter-spacing:3px; margin-bottom:20px;
+}
+#lobby-level-grid {
+  display:flex; gap:8px; margin-bottom:16px;
+}
+.level-btn {
+  padding:8px 14px; font-size:12px; font-weight:bold; letter-spacing:1px;
+  border:2px solid #444; border-radius:8px;
+  background:rgba(20,15,50,0.85); color:#888; cursor:pointer;
+  transition:all 0.15s; text-transform:uppercase; text-align:center;
+}
+.level-btn:hover { border-color:#aaa; color:#ccc; }
+.level-btn.selected { border-color:#ffd700; color:#ffd700; box-shadow:0 0 12px rgba(255,215,0,0.3); background:rgba(50,40,20,0.9); }
+#lobby-options {
+  display:flex; gap:24px; margin-bottom:20px; align-items:flex-start;
+}
+.opt-group { display:flex; flex-direction:column; gap:6px; align-items:center; }
+.opt-label { font-size:10px; color:rgba(255,255,255,0.5); letter-spacing:2px; text-transform:uppercase; }
+.opt-row { display:flex; gap:6px; }
+.opt-btn {
+  padding:5px 12px; font-size:12px; font-weight:bold; letter-spacing:1px;
+  border:2px solid #444; border-radius:6px;
+  background:rgba(20,15,50,0.7); color:#666; cursor:pointer;
+  transition:all 0.15s; text-transform:uppercase;
+}
+.opt-btn:hover { border-color:#aaa; color:#ccc; }
+.opt-btn.selected { border-color:#ffd700; color:#ffd700; background:rgba(50,40,20,0.9); }
+#lobby-key-hint {
+  font-size:10px; color:rgba(255,255,255,0.35); letter-spacing:1px; margin-bottom:18px;
+  text-align:center; line-height:1.8;
+}
+.big-btn {
+  padding:14px 44px; font-size:20px; font-weight:bold; letter-spacing:2px;
+  border:3px solid #ffd700; border-radius:12px;
+  background:rgba(30,20,60,0.9); color:#ffd700; cursor:pointer;
+  transition:all 0.15s; text-transform:uppercase;
+  box-shadow:0 0 20px rgba(255,215,0,0.3), 0 4px 12px rgba(0,0,0,0.6);
+}
+.big-btn:hover { background:rgba(60,40,100,0.95); box-shadow:0 0 35px rgba(255,215,0,0.6); transform:scale(1.04); }
+.big-btn:active { transform:scale(0.98); }
+#lobby-footer {
+  margin-top:14px; display:flex; gap:20px; align-items:center;
+}
+.link-btn {
+  font-size:12px; color:rgba(255,255,255,0.4); text-decoration:underline;
+  cursor:pointer; letter-spacing:1px; background:none; border:none;
+}
+.link-btn:hover { color:rgba(255,255,255,0.8); }
+
+/* ============================================================
+   PRE-ROUND SCREEN
+   ============================================================ */
+#pre-round-screen {
+  position:absolute; top:0; left:0; width:100%; height:100%;
+  display:none; flex-direction:column; align-items:center; justify-content:center;
+  background:rgba(0,0,0,0.7); pointer-events:none; z-index:10;
+}
+#pre-round-title {
+  font-size:44px; font-weight:900; color:#ffd700; letter-spacing:4px;
+  text-shadow:0 0 40px rgba(255,215,0,0.8); margin-bottom:20px;
+}
+#pre-round-roles {
+  font-size:18px; color:#fff; letter-spacing:2px; margin-bottom:36px;
+  text-align:center; line-height:2;
+}
+#pre-round-countdown {
+  font-size:90px; font-weight:900; color:#fff;
+  text-shadow:0 0 60px rgba(255,255,255,0.6);
+}
+
+/* ============================================================
+   BATTLE HUD PANELS (rendered in DOM over canvas sides)
+   ============================================================ */
+#hud-left-panel {
+  position:absolute; top:0; left:0; width:25%; height:100%;
+  display:none; flex-direction:column; align-items:stretch;
+  padding:8px 6px 8px 8px; pointer-events:auto; z-index:5;
+  background:linear-gradient(90deg, rgba(0,0,0,0.5) 0%, transparent 100%);
+}
+#hud-right-panel {
+  position:absolute; top:0; right:0; width:25%; height:100%;
+  display:none; flex-direction:column; align-items:stretch;
+  padding:8px 8px 8px 6px; pointer-events:auto; z-index:5;
+  background:linear-gradient(270deg, rgba(0,0,0,0.5) 0%, transparent 100%);
+}
+
+.mp-player-name {
+  font-size:11px; font-weight:bold; letter-spacing:2px;
+  text-transform:uppercase; margin-bottom:4px; text-align:center;
+}
+.mp-stage-name {
+  font-size:10px; letter-spacing:1px; text-align:center;
+  margin-bottom:5px; opacity:0.8;
+}
+.mp-hp-label { font-size:9px; color:rgba(255,255,255,0.5); letter-spacing:1px; margin-bottom:2px; }
+.mp-hp-wrap {
+  width:100%; height:10px; background:rgba(0,0,0,0.6);
+  border-radius:5px; border:1px solid rgba(255,255,255,0.2); overflow:hidden; margin-bottom:2px;
+}
+.mp-hp-fill { height:100%; border-radius:5px; transition:width 0.25s ease; }
+.mp-hp-num { font-size:10px; color:rgba(255,255,255,0.6); margin-bottom:6px; text-align:right; }
+
+.mp-power-label { font-size:9px; color:rgba(255,255,255,0.5); letter-spacing:1px; margin-bottom:2px; }
+.mp-power-wrap {
+  width:100%; height:8px; background:rgba(0,0,0,0.6);
+  border-radius:4px; border:1px solid rgba(255,255,255,0.15); overflow:hidden; margin-bottom:8px;
+}
+.mp-power-fill {
+  height:100%; border-radius:4px;
+  background:linear-gradient(90deg, #ff8800, #ffdd00, #ffffff);
+  transition:width 0.3s ease;
+  box-shadow:0 0 6px rgba(255,200,0,0.5);
+}
+
+.mp-shield-row { font-size:10px; color:#88aaff; margin-bottom:6px; text-align:center; min-height:14px; }
+
+/* Question area inside HUD panels */
+.mp-question-wrap {
+  flex:1; display:flex; flex-direction:column; justify-content:flex-end;
+  padding-bottom:6px;
+}
+.mp-q-text {
+  font-size:22px; font-weight:bold; color:#fff; text-align:center;
+  letter-spacing:2px; margin-bottom:6px;
+  text-shadow:0 0 16px rgba(255,220,100,0.8);
+  min-height:30px;
+}
+.mp-ans-grid {
+  display:grid; grid-template-columns:1fr 1fr; gap:4px;
+}
+.mp-ans-btn {
+  padding:7px 4px; border-radius:7px;
+  border:2px solid rgba(255,255,255,0.2);
+  background:rgba(10,10,40,0.85);
+  color:#fff; font-size:13px; font-weight:bold;
+  cursor:pointer; transition:all 0.1s;
+  text-align:center;
+}
+.mp-ans-btn:hover { border-color:#ffd700; background:rgba(40,40,80,0.95); }
+.mp-ans-btn.correct { background:rgba(0,160,70,0.9); border-color:#00ee88; }
+.mp-ans-btn.wrong   { background:rgba(160,30,30,0.9); border-color:#ff4444; }
+.mp-ans-btn.idle    { opacity:0.3; pointer-events:none; }
+
+/* Power selection overlay inside each panel */
+.mp-power-overlay {
+  position:absolute; top:0; left:0; width:25%; height:100%;
+  display:none; flex-direction:column; align-items:center; justify-content:center;
+  background:rgba(0,0,0,0.75); z-index:15; pointer-events:auto; padding:12px 8px;
+}
+#power-overlay-left  { left:0; }
+#power-overlay-right { left:auto; right:0; }
+.mp-power-title { font-size:13px; font-weight:bold; color:#ffd700; margin-bottom:10px; letter-spacing:2px; text-align:center; }
+.mp-sp-grid { display:flex; flex-direction:column; gap:7px; width:100%; }
+.mp-sp-btn {
+  display:flex; align-items:center; gap:6px;
+  padding:7px 8px; border-radius:8px;
+  border:2px solid rgba(255,215,0,0.4);
+  background:rgba(20,10,50,0.9); color:#fff;
+  cursor:pointer; transition:all 0.12s;
+}
+.mp-sp-btn:hover { border-color:#ffd700; background:rgba(50,30,100,0.95); transform:scale(1.03); }
+.mp-sp-icon { font-size:20px; flex-shrink:0; }
+.mp-sp-info { display:flex; flex-direction:column; }
+.mp-sp-name { font-size:11px; font-weight:bold; color:#ffd700; }
+.mp-sp-key  { font-size:9px; color:rgba(255,255,255,0.45); }
+.mp-sp-desc { font-size:9px; color:rgba(255,255,255,0.55); }
+
+/* ============================================================
+   CENTER TOP HUD (score / round info)
+   ============================================================ */
+#battle-center-hud {
+  position:absolute; top:6px; left:25%; width:50%;
+  display:none; align-items:center; justify-content:center;
+  pointer-events:none; z-index:5; gap:16px;
+}
+.bch-item { text-align:center; }
+.bch-label { font-size:9px; color:rgba(255,255,255,0.4); letter-spacing:1px; }
+.bch-val   { font-size:16px; font-weight:bold; color:#ffd700; }
+
+/* ============================================================
+   ROUND END SCREEN
+   ============================================================ */
+#round-end-screen {
+  position:absolute; top:0; left:0; width:100%; height:100%;
+  display:none; flex-direction:column; align-items:center; justify-content:center;
+  background:rgba(0,0,0,0.82); pointer-events:auto; z-index:20;
+}
+#round-end-title { font-size:48px; font-weight:900; letter-spacing:4px; margin-bottom:10px; text-shadow:0 0 40px currentColor; }
+#round-end-score { font-size:22px; font-weight:bold; color:#ffd700; margin-bottom:14px; }
+#round-end-swap  { font-size:14px; color:rgba(255,255,255,0.65); margin-bottom:28px; text-align:center; line-height:1.8; }
+#round-end-auto  { font-size:11px; color:rgba(255,255,255,0.3); margin-top:10px; }
+
+/* ============================================================
+   MATCH END SCREEN
+   ============================================================ */
+#match-end-screen {
+  position:absolute; top:0; left:0; width:100%; height:100%;
+  display:none; flex-direction:column; align-items:center; justify-content:center;
+  background:radial-gradient(ellipse at center, rgba(30,10,80,0.96) 0%, rgba(0,0,0,0.99) 100%);
+  pointer-events:auto; z-index:30;
+}
+#match-end-title { font-size:42px; font-weight:900; color:#ffd700; letter-spacing:3px; text-align:center; text-shadow:0 0 40px rgba(255,215,0,0.9); margin-bottom:8px; }
+#match-end-score { font-size:40px; font-weight:bold; color:#fff; margin-bottom:14px; }
+#match-end-stats { font-size:12px; color:rgba(255,255,255,0.55); margin-bottom:28px; text-align:center; line-height:2.0; }
+.match-end-btns { display:flex; gap:12px; flex-wrap:wrap; justify-content:center; }
+.match-end-btns .big-btn { font-size:15px; padding:10px 28px; }
+
+/* TRAINING: ready banner within the side panels */
+.mp-ready-banner {
+  position:absolute; top:50%; transform:translateY(-50%);
+  font-size:18px; font-weight:900; color:#ffd700; letter-spacing:3px;
+  text-shadow:0 0 20px rgba(255,215,0,0.8);
+  text-align:center; pointer-events:none; display:none;
+  width:100%; z-index:8;
+}
+
+/* TRAINING phase overlay banners over canvas center */
+#training-center-msg {
+  position:absolute; top:50%; left:25%; width:50%;
+  transform:translateY(-50%); text-align:center;
+  display:none; pointer-events:none; z-index:8;
+}
+#training-center-msg span {
+  font-size:28px; font-weight:900; color:#ffd700; letter-spacing:4px;
+  text-shadow:0 0 30px rgba(255,215,0,0.9);
+}
+
+/* Training count display */
+.mp-train-count {
+  font-size:10px; color:rgba(255,255,255,0.4); text-align:center; margin-bottom:4px; letter-spacing:1px;
+}
+
+/* Split divider line */
+#split-dividers {
+  position:absolute; top:0; left:0; width:100%; height:100%;
+  pointer-events:none; z-index:4;
+  display:none;
+}
+#split-dividers::before {
+  content:''; position:absolute;
+  top:0; bottom:0; left:25%;
+  width:1px; background:rgba(255,255,255,0.1);
+}
+#split-dividers::after {
+  content:''; position:absolute;
+  top:0; bottom:0; left:75%;
+  width:1px; background:rgba(255,255,255,0.1);
+}
+
+/* Lobby background — covers canvas nicely */
+#lobby-bg-overlay {
+  position:absolute; top:0; left:0; width:100%; height:100%;
+  background:rgba(0,0,0,0.5); pointer-events:none; z-index:9;
+}
+
+@keyframes float-up {
+  0%   { opacity:1; transform:translateX(-50%) translateY(0); }
+  100% { opacity:0; transform:translateX(-50%) translateY(-60px); }
+}
+</style>
+</head>
+<body>
+<div id="game-wrap">
+  <div id="game-container">
+    <canvas id="game-canvas"></canvas>
+    <div id="flash-overlay"></div>
+    <div id="float-container"></div>
+
+    <!-- Split dividers -->
+    <div id="split-dividers"></div>
+
+    <!-- LOBBY BG OVERLAY -->
+    <div id="lobby-bg-overlay"></div>
+
+    <!-- ========================================================
+         LOBBY SCREEN
+         ======================================================== -->
+    <div id="lobby-screen">
+      <div id="lobby-title">ANGEL vs DEVIL</div>
+      <div id="lobby-sub">MULTIPLAYER — SPLIT SCREEN</div>
+
+      <div style="font-size:10px;color:rgba(255,255,255,0.4);letter-spacing:2px;margin-bottom:8px;text-transform:uppercase;">Select World</div>
+      <div id="lobby-level-grid">
+        <button class="level-btn selected" data-level="0">L1<br>Forest</button>
+        <button class="level-btn" data-level="1">L2<br>Peaks</button>
+        <button class="level-btn" data-level="2">L3<br>Ruins</button>
+        <button class="level-btn" data-level="3">L4<br>Wastes</button>
+        <button class="level-btn" data-level="4">L5<br>Throne</button>
+      </div>
+
+      <div id="lobby-options">
+        <div class="opt-group">
+          <div class="opt-label">Difficulty</div>
+          <div class="opt-row">
+            <button class="opt-btn" data-diff="easy">Easy</button>
+            <button class="opt-btn selected" data-diff="normal">Normal</button>
+            <button class="opt-btn" data-diff="hard">Hard</button>
+          </div>
+        </div>
+        <div class="opt-group">
+          <div class="opt-label">Voice</div>
+          <div class="opt-row">
+            <button class="opt-btn selected" data-lang="en">EN</button>
+            <button class="opt-btn" data-lang="fr">FR</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="lobby-key-hint">
+        P1 (Angel): Answer <b style="color:#aaddff">1 2 3 4</b> &nbsp;|&nbsp; Shoot <b style="color:#aaddff">Q W E R T A S D F G Z X C V B</b><br>
+        P2 (Devil): Answer <b style="color:#ff99aa">9 0 - =</b> &nbsp;|&nbsp; Shoot <b style="color:#ff99aa">Y U I O P [ ] H J K L ; ' N M , . /</b>
+      </div>
+
+      <button class="big-btn" id="start-match-btn">START MATCH</button>
+
+      <div id="lobby-footer">
+        <button class="link-btn" onclick="window.location='angel-vs-devil.html'">CAMPAIGN MODE</button>
+      </div>
+    </div>
+
+    <!-- ========================================================
+         PRE-ROUND SCREEN
+         ======================================================== -->
+    <div id="pre-round-screen">
+      <div id="pre-round-title">ROUND 1 of 3</div>
+      <div id="pre-round-roles">
+        Player 1 (left keys): <b id="pre-p1-role" style="color:#aaddff">ANGEL</b><br>
+        Player 2 (right keys): <b id="pre-p2-role" style="color:#ff8888">DEVIL</b>
+      </div>
+      <div id="pre-round-countdown">3</div>
+    </div>
+
+    <!-- ========================================================
+         TRAINING CENTER MESSAGE
+         ======================================================== -->
+    <div id="training-center-msg"><span id="training-center-text">TRAINING</span></div>
+
+    <!-- ========================================================
+         LEFT PLAYER HUD PANEL
+         ======================================================== -->
+    <div id="hud-left-panel">
+      <div class="mp-player-name" id="left-player-name" style="color:#aaddff">P1 — ANGEL</div>
+      <div class="mp-stage-name" id="left-stage-name" style="color:#aaaaff">Weakened</div>
+
+      <div class="mp-hp-label">HP</div>
+      <div class="mp-hp-wrap"><div class="mp-hp-fill" id="left-hp-fill" style="width:100%;background:linear-gradient(90deg,#00cc44,#44ff88)"></div></div>
+      <div class="mp-hp-num"><span id="left-hp-cur">15</span> / <span id="left-hp-max">15</span></div>
+
+      <div class="mp-power-label">POWER</div>
+      <div class="mp-power-wrap"><div class="mp-power-fill" id="left-power-fill" style="width:0%"></div></div>
+
+      <div class="mp-shield-row" id="left-shield-row"></div>
+
+      <div class="mp-train-count" id="left-train-count" style="display:none"></div>
+
+      <div class="mp-question-wrap">
+        <div class="mp-q-text" id="left-q-text"></div>
+        <div class="mp-ans-grid" id="left-ans-grid">
+          <button class="mp-ans-btn idle" id="left-btn0"></button>
+          <button class="mp-ans-btn idle" id="left-btn1"></button>
+          <button class="mp-ans-btn idle" id="left-btn2"></button>
+          <button class="mp-ans-btn idle" id="left-btn3"></button>
+        </div>
+      </div>
+
+      <!-- Ready banner inside left panel -->
+      <div class="mp-ready-banner" id="left-ready-banner">READY!</div>
+    </div>
+
+    <!-- ========================================================
+         RIGHT PLAYER HUD PANEL
+         ======================================================== -->
+    <div id="hud-right-panel">
+      <div class="mp-player-name" id="right-player-name" style="color:#ff8888">P2 — DEVIL</div>
+      <div class="mp-stage-name" id="right-stage-name" style="color:#ff6666">Weakened</div>
+
+      <div class="mp-hp-label">HP</div>
+      <div class="mp-hp-wrap"><div class="mp-hp-fill" id="right-hp-fill" style="width:100%;background:linear-gradient(90deg,#cc2222,#ff4444)"></div></div>
+      <div class="mp-hp-num"><span id="right-hp-cur">15</span> / <span id="right-hp-max">15</span></div>
+
+      <div class="mp-power-label">POWER</div>
+      <div class="mp-power-wrap"><div class="mp-power-fill" id="right-power-fill" style="width:0%"></div></div>
+
+      <div class="mp-shield-row" id="right-shield-row"></div>
+
+      <div class="mp-train-count" id="right-train-count" style="display:none"></div>
+
+      <div class="mp-question-wrap">
+        <div class="mp-q-text" id="right-q-text"></div>
+        <div class="mp-ans-grid" id="right-ans-grid">
+          <button class="mp-ans-btn idle" id="right-btn0"></button>
+          <button class="mp-ans-btn idle" id="right-btn1"></button>
+          <button class="mp-ans-btn idle" id="right-btn2"></button>
+          <button class="mp-ans-btn idle" id="right-btn3"></button>
+        </div>
+      </div>
+
+      <!-- Ready banner inside right panel -->
+      <div class="mp-ready-banner" id="right-ready-banner">READY!</div>
+    </div>
+
+    <!-- Power selection overlays -->
+    <div class="mp-power-overlay" id="power-overlay-left">
+      <div class="mp-power-title">CHOOSE POWER!</div>
+      <div class="mp-sp-grid" id="left-sp-grid"></div>
+    </div>
+    <div class="mp-power-overlay" id="power-overlay-right">
+      <div class="mp-power-title">CHOOSE POWER!</div>
+      <div class="mp-sp-grid" id="right-sp-grid"></div>
+    </div>
+
+    <!-- Center battle HUD (round/score) -->
+    <div id="battle-center-hud">
+      <div class="bch-item">
+        <div class="bch-label">ROUND</div>
+        <div class="bch-val" id="bch-round">1/3</div>
+      </div>
+      <div class="bch-item">
+        <div class="bch-label">SCORE</div>
+        <div class="bch-val" id="bch-score">0 — 0</div>
+      </div>
+    </div>
+
+    <!-- ========================================================
+         ROUND END SCREEN
+         ======================================================== -->
+    <div id="round-end-screen">
+      <div id="round-end-title">PLAYER 1 WINS!</div>
+      <div id="round-end-score">1 — 0</div>
+      <div id="round-end-swap"></div>
+      <button class="big-btn" id="next-round-btn">NEXT ROUND</button>
+      <div id="round-end-auto"></div>
+    </div>
+
+    <!-- ========================================================
+         MATCH END SCREEN
+         ======================================================== -->
+    <div id="match-end-screen">
+      <div id="match-end-title">PLAYER 1 IS THE CHAMPION!</div>
+      <div id="match-end-score">2 — 1</div>
+      <div id="match-end-stats"></div>
+      <div class="match-end-btns">
+        <button class="big-btn" id="rematch-btn">REMATCH</button>
+        <button class="big-btn" id="back-lobby-btn" style="border-color:#aaa;color:#ccc;background:rgba(30,30,50,0.9)">LOBBY</button>
+        <button class="big-btn" id="campaign-btn" style="border-color:#88aaff;color:#88aaff;background:rgba(10,10,40,0.9)">CAMPAIGN</button>
+      </div>
+    </div>
+
+  </div><!-- #game-container -->
+</div><!-- #game-wrap -->
+
+<script src="assets.js"></script>
+<script>
+"use strict";
+
+// ============================================================
+// CANVAS & CONTAINER SETUP
+// ============================================================
+var wrap2     = document.getElementById("game-wrap");
+container = document.getElementById("game-container");
+var canvas2 = document.getElementById("game-canvas");
+ctx = canvas2.getContext("2d");
+canvas2.width = W; canvas2.height = H;
+canvas2.style.imageRendering = "pixelated";
+
+function resize2() {
+  var vw = window.innerWidth, vh = window.innerHeight;
+  var scale = Math.min(vw/W, vh/H);
+  var pw = Math.floor(W*scale), ph = Math.floor(H*scale);
+  container.style.width  = pw + "px";
+  container.style.height = ph + "px";
+  canvas2.style.width  = pw + "px";
+  canvas2.style.height = ph + "px";
+}
+window.addEventListener("resize", resize2);
+resize2();
+
+// ============================================================
+// CONSTANTS
+// ============================================================
+var MP_W = W;     // 800
+var MP_H = H;     // 500
+var LEFT_W   = Math.floor(W * 0.25);   // 200
+var CENTER_W = Math.floor(W * 0.50);   // 400
+var RIGHT_W  = W - LEFT_W - CENTER_W;  // 200
+var CENTER_X = LEFT_W;                 // 200
+var RIGHT_X  = LEFT_W + CENTER_W;      // 600
+
+// Stage thresholds for multiplayer (6 training questions, same proportional scaling)
+// Multiplayer always uses 6 questions regardless of level
+var MP_STAGE_THRESH = [1, 3, 5, 6]; // correct answers to reach stage 1,2,3,4
+
+var DEVIL_STAGE_NAMES = ["Weakened Devil","Awakened","Empowered","Enraged","Unleashed"];
+var DEVIL_ATTACK_COLORS = [
+  "#9966cc", // stage 0: grey-purple
+  "#8800ff", // stage 1: purple
+  "#00aaaa", // stage 2: dark teal
+  "#cc2200", // stage 3: red-black
+  "#660033"  // stage 4: dark crimson
+];
+
+// Angel powers
+var ANGEL_POWERS = [
+  { key:"1", icon:"🔥", name:"Wings of Fire",   desc:"5 damage + explosion",   keyLabel:"[1]", type:"fire"      },
+  { key:"2", icon:"⚡", name:"Holy Lightning",  desc:"3 dmg + heal 2 HP",      keyLabel:"[2]", type:"lightning" },
+  { key:"3", icon:"🛡️", name:"Divine Shield",   desc:"Block 2 attacks",        keyLabel:"[3]", type:"shield"    },
+  { key:"4", icon:"💚", name:"Healing Potion",  desc:"Restore 4 HP",           keyLabel:"[4]", type:"heal"      }
+];
+
+// Devil powers (same mechanics, dark theme)
+var DEVIL_POWERS = [
+  { key:"9", icon:"💀", name:"Hellfire Blast",  desc:"5 damage + skull fire",  keyLabel:"[9]", type:"fire"      },
+  { key:"0", icon:"⚡", name:"Dark Lightning",  desc:"3 dmg + heal 2 HP",      keyLabel:"[0]", type:"lightning" },
+  { key:"-", icon:"🌑", name:"Shadow Shield",   desc:"Block 2 attacks",        keyLabel:"[-]", type:"shield"    },
+  { key:"=", icon:"🩸", name:"Blood Potion",    desc:"Restore 4 HP",           keyLabel:"[=]", type:"heal"      }
+];
+
+var LEFT_SHOOT_KEYS  = new Set(["q","w","e","r","t","a","s","d","f","g","z","x","c","v","b"]);
+var RIGHT_SHOOT_KEYS = new Set(["y","u","i","o","p","[","]","h","j","k","l",";","'","n","m",",",".","/",
+                                 "arrowleft","arrowright","arrowup","arrowdown"]); // include some extras
+
+var LEFT_ANS_KEYS  = {"1":0,"2":1,"3":2,"4":3};
+var RIGHT_ANS_KEYS = {"9":0,"0":1,"-":2,"=":3};
+
+// ============================================================
+// MULTIPLAYER STATE
+// ============================================================
+var mp = {
+  phase: "lobby",
+  round: 1,
+  maxRounds: 3,
+  scores: [0, 0],     // [P1 wins, P2 wins]
+  draws: 0,
+  level: 0,
+  lang: "en",
+  difficulty: "normal",
+  suddenDeath: false,
+
+  // Per-round stats for match end screen
+  p1Stats: { shotsFired:0, shotsHit:0, powersUsed:0 },
+  p2Stats: { shotsFired:0, shotsHit:0, powersUsed:0 },
+
+  left: null,
+  right: null,
+
+  // Training countdown
+  trainingTimer: 30,
+  trainingInterval: null,
+  trainingBothDone: false,
+  firstFinished: null,  // "left" | "right" | null
+
+  // Battle timers
+  questionInterval: null,
+  leftQTimer: null,
+  rightQTimer: null,
+  battleActive: false,
+
+  // Round-end auto-advance
+  roundEndTimer: null,
+};
+
+function makeSideState(role) {
+  return {
+    role: role,             // "angel" | "devil"
+    stage: 0,
+    hp: 15, hpMax: 15,
+    powerBar: 0,
+    streak: 0, correctCount: 0,
+    wrongAnswers: [],
+    shieldCharges: 0,
+    lastShotTime: 0,
+    shotsFired: 0, shotsHit: 0,
+    powersUsed: 0,
+    score: 0,
+    // training
+    trainingDone: false,
+    trainQ: [],
+    trainIdx: 0,
+    currentQ: null,
+    answerLocked: false,
+    feedbackTimeout: null,
+    // battle
+    battleQ: null,
+    battleAnswerLocked: false,
+    battleFeedbackTimeout: null,
+    awaitingPower: false,
+    // animation
+    knockback: 0, flash: 0,
+    // seraphim sparkles (per-side)
+    seraphimSparkles: [],
+  };
+}
+
+// ============================================================
+// LOBBY UI LOGIC
+// ============================================================
+document.querySelectorAll(".level-btn").forEach(function(btn) {
+  btn.addEventListener("click", function() {
+    document.querySelectorAll(".level-btn").forEach(function(b) { b.classList.remove("selected"); });
+    btn.classList.add("selected");
+    mp.level = parseInt(btn.dataset.level);
+    // Update background preview
+    if (!bgCache[mp.level]) bgCache[mp.level] = createBgCanvas(mp.level);
+    resetAmbients(mp.level);
+  });
+});
+
+document.querySelectorAll("[data-diff]").forEach(function(btn) {
+  btn.addEventListener("click", function() {
+    document.querySelectorAll("[data-diff]").forEach(function(b) { b.classList.remove("selected"); });
+    btn.classList.add("selected");
+    mp.difficulty = btn.dataset.diff;
+    gameMode = mp.difficulty;
+  });
+});
+
+document.querySelectorAll("[data-lang]").forEach(function(btn) {
+  btn.addEventListener("click", function() {
+    document.querySelectorAll("[data-lang]").forEach(function(b) { b.classList.remove("selected"); });
+    btn.classList.add("selected");
+    mp.lang = btn.dataset.lang;
+  });
+});
+
+document.getElementById("start-match-btn").addEventListener("click", function() {
+  unlockAudio();
+  startMatch();
+});
+document.getElementById("next-round-btn").addEventListener("click", function() {
+  if (mp.roundEndTimer) { clearInterval(mp.roundEndTimer); mp.roundEndTimer = null; }
+  startNextRound();
+});
+document.getElementById("rematch-btn").addEventListener("click", function() { unlockAudio(); startMatch(); });
+document.getElementById("back-lobby-btn").addEventListener("click", function() { showLobby(); });
+document.getElementById("campaign-btn").addEventListener("click", function() { window.location = "angel-vs-devil.html"; });
+
+// ============================================================
+// MATCH / ROUND FLOW
+// ============================================================
+function startMatch() {
+  mp.round = 1;
+  mp.scores = [0, 0];
+  mp.draws = 0;
+  mp.suddenDeath = false;
+  mp._lastRoundWasDraw = false;
+  mp.p1Stats = { shotsFired:0, shotsHit:0, powersUsed:0 };
+  mp.p2Stats = { shotsFired:0, shotsHit:0, powersUsed:0 };
+  gameMode = mp.difficulty;
+  startPreRound();
+}
+
+function startPreRound() {
+  // Assign roles: P1=Angel in odd rounds, P1=Devil in even rounds
+  var p1IsAngel = (mp.round % 2 === 1);
+  mp.left  = makeSideState(p1IsAngel ? "angel" : "devil");
+  mp.right = makeSideState(p1IsAngel ? "devil" : "angel");
+
+  // HP based on difficulty
+  var hpMap = { easy:18, normal:15, hard:12 };
+  var hp = (mp.suddenDeath) ? 8 : (hpMap[mp.difficulty] || 15);
+  mp.left.hp = mp.left.hpMax = hp;
+  mp.right.hp = mp.right.hpMax = hp;
+
+  showPreRound(p1IsAngel);
+}
+
+function showPreRound(p1IsAngel) {
+  hideBattleUI();
+  document.getElementById("lobby-screen").style.display = "none";
+  document.getElementById("round-end-screen").style.display = "none";
+  document.getElementById("match-end-screen").style.display = "none";
+
+  var preEl = document.getElementById("pre-round-screen");
+  preEl.style.display = "flex";
+
+  var roundLabel = mp.suddenDeath ? "SUDDEN DEATH" : ("ROUND " + mp.round + " of " + mp.maxRounds);
+  document.getElementById("pre-round-title").textContent = roundLabel;
+  document.getElementById("pre-p1-role").textContent = p1IsAngel ? "ANGEL" : "DEVIL";
+  document.getElementById("pre-p2-role").textContent = p1IsAngel ? "DEVIL" : "ANGEL";
+  document.getElementById("pre-p1-role").style.color = p1IsAngel ? "#aaddff" : "#ff8888";
+  document.getElementById("pre-p2-role").style.color = p1IsAngel ? "#ff8888" : "#aaddff";
+
+  var cdEl = document.getElementById("pre-round-countdown");
+  var count = 3;
+  cdEl.textContent = count;
+  var cdInterval = setInterval(function() {
+    count--;
+    if (count <= 0) {
+      clearInterval(cdInterval);
+      cdEl.textContent = "FIGHT!";
+      setTimeout(function() {
+        preEl.style.display = "none";
+        startTrainingPhase();
+      }, 700);
+    } else {
+      cdEl.textContent = count;
+      sfxTimerUrgent();
+    }
+  }, 900);
+  sfxTimerTick();
+}
+
+// ============================================================
+// TRAINING PHASE
+// ============================================================
+function startTrainingPhase() {
+  mp.trainingBothDone = false;
+  mp.firstFinished = null;
+
+  var lvl = mp.level;
+
+  // Generate 6 questions per side (same table, independent shuffle)
+  mp.left.trainQ  = generateMPTrainQ(lvl);
+  mp.right.trainQ = generateMPTrainQ(lvl);
+  mp.left.trainIdx  = 0;
+  mp.right.trainIdx = 0;
+  mp.left.trainingDone  = false;
+  mp.right.trainingDone = false;
+  mp.left.correctCount  = 0;
+  mp.right.correctCount = 0;
+  mp.left.stage  = 0;
+  mp.right.stage = 0;
+  mp.left.powerBar  = 0;
+  mp.right.powerBar = 0;
+  mp.left.streak  = 0;
+  mp.right.streak = 0;
+  mp.left.wrongAnswers  = [];
+  mp.right.wrongAnswers = [];
+  mp.left.shieldCharges  = 0;
+  mp.right.shieldCharges = 0;
+  mp.left.answerLocked  = false;
+  mp.right.answerLocked = false;
+
+  // Show HUD panels (training mode)
+  showHUDPanels("training");
+  mp.phase = "training";
+
+  // Show training center message
+  var ctm = document.getElementById("training-center-msg");
+  ctm.style.display = "block";
+  document.getElementById("training-center-text").textContent = "TRAINING";
+
+  // Show training count labels
+  document.getElementById("left-train-count").style.display = "block";
+  document.getElementById("right-train-count").style.display = "block";
+
+  // First questions
+  showTrainingQuestion("left");
+  showTrainingQuestion("right");
+
+  // 30-second max timer
+  mp.trainingTimer = 30;
+  if (mp.trainingInterval) clearInterval(mp.trainingInterval);
+  mp.trainingInterval = setInterval(function() {
+    mp.trainingTimer--;
+    if (mp.trainingTimer <= 3 && mp.trainingTimer > 0) sfxTimerUrgent();
+    if (mp.trainingTimer <= 0) {
+      clearInterval(mp.trainingInterval);
+      mp.trainingInterval = null;
+      // Force complete both sides
+      if (!mp.left.trainingDone)  finishTrainingSide("left",  true);
+      if (!mp.right.trainingDone) finishTrainingSide("right", true);
+    }
+  }, 1000);
+}
+
+function generateMPTrainQ(level) {
+  var N = LEVEL_CONFIG[level].table;
+  var mults = [1,2,3,4,5,6,7,8,9,10];
+  shuffleArray(mults);
+  var q = [];
+  for (var i=0; i<6; i++) {
+    q.push({ a: N, b: mults[i % 10] });
+  }
+  return q;
+}
+
+function showTrainingQuestion(side) {
+  var s = mp[side];
+  if (s.trainingDone) return;
+  if (s.trainIdx >= s.trainQ.length) {
+    finishTrainingSide(side, false);
+    return;
+  }
+  s.currentQ = s.trainQ[s.trainIdx];
+  s.answerLocked = false;
+
+  var choices = generateDistractors(s.currentQ.a, s.currentQ.b, mp.level);
+  showSideQuestion(side, s.currentQ, choices, "training");
+  updateTrainCount(side);
+}
+
+function updateTrainCount(side) {
+  var s = mp[side];
+  var el = document.getElementById(side + "-train-count");
+  if (el) el.textContent = s.trainIdx + " / 6";
+}
+
+function showSideQuestion(side, q, choices, mode) {
+  var prefix = (side === "left") ? ["[1]","[2]","[3]","[4]"] : ["[9]","[0]","[-]","[=]"];
+  document.getElementById(side + "-q-text").textContent = q.a + " × " + q.b + " = ?";
+  for (var i=0; i<4; i++) {
+    var btn = document.getElementById(side + "-btn" + i);
+    btn.textContent = prefix[i] + " " + choices[i];
+    btn.dataset.val = choices[i];
+    btn.dataset.mode = mode;
+    btn.className = "mp-ans-btn";
+  }
+}
+
+function clearSideQuestion(side) {
+  document.getElementById(side + "-q-text").textContent = "";
+  for (var i=0; i<4; i++) {
+    var btn = document.getElementById(side + "-btn" + i);
+    btn.textContent = "";
+    btn.dataset.val = "";
+    btn.className = "mp-ans-btn idle";
+  }
+}
+
+function handleTrainingAnswer(side, valStr) {
+  var s = mp[side];
+  if (!s || s.trainingDone || s.answerLocked) return;
+  if (!s.currentQ) return;
+  s.answerLocked = true;
+
+  var val = parseInt(valStr);
+  var correct = s.currentQ.a * s.currentQ.b;
+  var isCorrect = (val === correct);
+
+  // Mark button visually
+  for (var i=0; i<4; i++) {
+    var btn = document.getElementById(side + "-btn" + i);
+    if (parseInt(btn.dataset.val) === val) {
+      btn.classList.add(isCorrect ? "correct" : "wrong");
+    }
+    if (!isCorrect && parseInt(btn.dataset.val) === correct) {
+      btn.classList.add("correct");
+    }
+  }
+
+  if (isCorrect) {
+    sfxCorrect();
+    s.correctCount++;
+    s.streak++;
+    // Power bar fill: each correct answer = 100/6 ≈ 16.7%
+    s.powerBar = Math.min(100, s.powerBar + 100/6);
+    // Stage advancement
+    var newStage = 0;
+    for (var t=0; t<MP_STAGE_THRESH.length; t++) {
+      if (s.correctCount >= MP_STAGE_THRESH[t]) newStage = t+1;
+    }
+    if (newStage > s.stage) {
+      s.stage = newStage;
+      sfxStreak();
+      spawnFloatText(STAGE_NAMES[s.stage], side==="left" ? 100 : 700, 200, "#ffd700", 18);
+    }
+    updateSideHUD(side);
+  } else {
+    sfxWrong();
+    s.streak = 0;
+    s.wrongAnswers.push({ a: s.currentQ.a, b: s.currentQ.b });
+    s.powerBar = Math.max(0, s.powerBar - 5);
+    updateSideHUD(side);
+  }
+
+  s.trainIdx++;
+  if (s.feedbackTimeout) clearTimeout(s.feedbackTimeout);
+  s.feedbackTimeout = setTimeout(function() {
+    if (s.trainingDone) return;
+    if (s.trainIdx >= s.trainQ.length || s.powerBar >= 100) {
+      finishTrainingSide(side, false);
+    } else {
+      showTrainingQuestion(side);
+    }
+  }, 500);
+}
+
+function finishTrainingSide(side, forced) {
+  var s = mp[side];
+  if (s.trainingDone) return;
+  s.trainingDone = true;
+
+  clearSideQuestion(side);
+  document.getElementById(side + "-train-count").style.display = "none";
+
+  // Show READY banner
+  var banner = document.getElementById(side + "-ready-banner");
+  banner.style.display = "block";
+
+  // First to finish gets +1 shield charge
+  if (!mp.firstFinished) {
+    mp.firstFinished = side;
+    s.shieldCharges += 1;
+    sfxPowerUp();
+    spawnFloatText("+1 SHIELD!", side==="left" ? 100 : 700, 150, "#88aaff", 16);
+    updateSideHUD(side);
+  }
+
+  // Check if both done
+  var other = (side === "left") ? "right" : "left";
+  if (mp[other].trainingDone || forced) {
+    if (!mp[other].trainingDone) {
+      mp[other].trainingDone = true;
+      clearSideQuestion(other);
+      document.getElementById(other + "-train-count").style.display = "none";
+    }
+    if (mp.trainingInterval) { clearInterval(mp.trainingInterval); mp.trainingInterval = null; }
+    // Transition to battle after a short delay
+    document.getElementById("training-center-text").textContent = "READY FOR BATTLE!";
+    sfxTransition();
+    setTimeout(function() {
+      startBattlePhase();
+    }, 1500);
+  }
+}
+
+// ============================================================
+// BATTLE PHASE
+// ============================================================
+function startBattlePhase() {
+  mp.phase = "battle";
+  mp.battleActive = true;
+
+  var lvl = mp.level;
+  var left  = mp.left;
+  var right = mp.right;
+
+  // Generate battle questions from wrong answers pool
+  left.battleQ  = null;
+  right.battleQ = null;
+  left.answerLocked  = false;
+  right.answerLocked = false;
+  left.awaitingPower  = false;
+  right.awaitingPower = false;
+  left.battleAnswerLocked  = false;
+  right.battleAnswerLocked = false;
+
+  // Generate question pools
+  left._battlePool  = generateBattlePool(lvl, left.wrongAnswers);
+  right._battlePool = generateBattlePool(lvl, right.wrongAnswers);
+
+  // Update HUD to battle mode
+  showHUDPanels("battle");
+  document.getElementById("training-center-msg").style.display = "none";
+  document.getElementById("left-ready-banner").style.display = "none";
+  document.getElementById("right-ready-banner").style.display = "none";
+  document.getElementById("battle-center-hud").style.display = "flex";
+  updateBCH();
+
+  updateSideHUD("left");
+  updateSideHUD("right");
+
+  // Hide power selection overlays
+  document.getElementById("power-overlay-left").style.display = "none";
+  document.getElementById("power-overlay-right").style.display = "none";
+
+  // Build power selection buttons
+  buildPowerButtons("left",  left.role  === "angel" ? ANGEL_POWERS : DEVIL_POWERS);
+  buildPowerButtons("right", right.role === "angel" ? ANGEL_POWERS : DEVIL_POWERS);
+
+  sfxBattleStart();
+
+  // Start question cycles (staggered)
+  scheduleNextQuestion("left",  0);
+  scheduleNextQuestion("right", 1500);
+
+  startVoiceRecognition();
+}
+
+function generateBattlePool(level, wrongAnswers) {
+  var N = LEVEL_CONFIG[level].table;
+  var pool = [];
+  // Wrong answers first
+  wrongAnswers.forEach(function(w) { pool.push({ a:w.a, b:w.b }); });
+  // Fill with random from table
+  while (pool.length < 20) {
+    pool.push({ a:N, b: Math.floor(Math.random()*10)+1 });
+  }
+  shuffleArray(pool);
+  return pool;
+}
+
+function nextFromPool(pool, level) {
+  if (pool.length === 0) {
+    var N = LEVEL_CONFIG[level].table;
+    for (var b=1; b<=10; b++) pool.push({ a:N, b:b });
+    shuffleArray(pool);
+  }
+  return pool.shift();
+}
+
+function scheduleNextQuestion(side, delay) {
+  if (!mp.battleActive) return;
+  var timerKey = side + "_qTimer";
+  if (mp[timerKey]) clearTimeout(mp[timerKey]);
+  mp[timerKey] = setTimeout(function() {
+    if (!mp.battleActive) return;
+    askBattleQuestion(side);
+  }, delay || 0);
+}
+
+function askBattleQuestion(side) {
+  if (!mp.battleActive) return;
+  var s = mp[side];
+  if (s.awaitingPower) return; // Don't ask while power select is open
+
+  var q = nextFromPool(s._battlePool, mp.level);
+  s.battleQ = q;
+  s.battleAnswerLocked = false;
+
+  var choices = generateDistractors(q.a, q.b, mp.level);
+  showSideQuestion(side, q, choices, "battle");
+
+  // Auto-expire after 8 seconds (wrong answer penalty)
+  if (s._qExpireTimer) clearTimeout(s._qExpireTimer);
+  s._qExpireTimer = setTimeout(function() {
+    if (!mp.battleActive || s.battleAnswerLocked || !s.battleQ) return;
+    // Timeout: opponent gets free 2-damage hit
+    s.battleQ = null;
+    clearSideQuestion(side);
+    sfxWrong();
+    var target = (side === "left") ? "right" : "left";
+    // Don't damage if awaitingPower on target
+    applyDamage(target, 2, side);
+    // Schedule next question
+    scheduleNextQuestion(side, 3000);
+  }, 8000);
+}
+
+function handleBattleAnswer(side, valStr) {
+  var s = mp[side];
+  if (!s || !mp.battleActive) return;
+  if (s.awaitingPower || s.battleAnswerLocked) return;
+  if (!s.battleQ) return;
+
+  s.battleAnswerLocked = true;
+  if (s._qExpireTimer) { clearTimeout(s._qExpireTimer); s._qExpireTimer = null; }
+
+  var val = parseInt(valStr);
+  var correct = s.battleQ.a * s.battleQ.b;
+  var isCorrect = (val === correct);
+
+  // Feedback on buttons
+  for (var i=0; i<4; i++) {
+    var btn = document.getElementById(side + "-btn" + i);
+    if (parseInt(btn.dataset.val) === val) {
+      btn.classList.add(isCorrect ? "correct" : "wrong");
+    }
+    if (!isCorrect && parseInt(btn.dataset.val) === correct) {
+      btn.classList.add("correct");
+    }
+  }
+
+  if (isCorrect) {
+    sfxCorrect();
+    s.correctCount++;
+    // Stage advancement
+    var newStage = 0;
+    for (var t=0; t<MP_STAGE_THRESH.length; t++) {
+      if (s.correctCount >= MP_STAGE_THRESH[t]) newStage = t+1;
+    }
+    if (newStage > s.stage) {
+      s.stage = Math.min(4, newStage);
+    }
+    s.battleQ = null;
+
+    // Show power selection
+    if (s.battleFeedbackTimeout) clearTimeout(s.battleFeedbackTimeout);
+    s.battleFeedbackTimeout = setTimeout(function() {
+      clearSideQuestion(side);
+      showPowerSelection(side);
+    }, 400);
+  } else {
+    sfxWrong();
+    s.battleQ = null;
+    // Free 2-damage hit to opponent
+    var opp = (side === "left") ? "right" : "left";
+    applyDamage(opp, 2, side);
+
+    if (s.battleFeedbackTimeout) clearTimeout(s.battleFeedbackTimeout);
+    s.battleFeedbackTimeout = setTimeout(function() {
+      clearSideQuestion(side);
+      scheduleNextQuestion(side, 3000);
+    }, 500);
+  }
+}
+
+// ============================================================
+// POWER SELECTION
+// ============================================================
+function buildPowerButtons(side, powers) {
+  var grid = document.getElementById(side + "-sp-grid");
+  grid.innerHTML = "";
+  powers.forEach(function(p, i) {
+    var btn = document.createElement("button");
+    btn.className = "mp-sp-btn";
+    btn.innerHTML = '<span class="mp-sp-icon">' + p.icon + '</span>' +
+      '<span class="mp-sp-info">' +
+        '<span class="mp-sp-name">' + p.name + '</span>' +
+        '<span class="mp-sp-key">' + p.keyLabel + '</span>' +
+        '<span class="mp-sp-desc">' + p.desc + '</span>' +
+      '</span>';
+    btn.dataset.powerIdx = i;
+    btn.dataset.side = side;
+    btn.addEventListener("click", function() {
+      unlockAudio();
+      selectPower(side, i);
+    });
+    grid.appendChild(btn);
+  });
+}
+
+function showPowerSelection(side) {
+  var s = mp[side];
+  s.awaitingPower = true;
+  clearSideQuestion(side);
+  sfxPowerUp();
+
+  var overlayId = (side === "left") ? "power-overlay-left" : "power-overlay-right";
+  document.getElementById(overlayId).style.display = "flex";
+
+  // Auto-select first power after 6 seconds if no selection
+  s._powerAutoTimer = setTimeout(function() {
+    if (s.awaitingPower) selectPower(side, 0);
+  }, 6000);
+}
+
+function selectPower(side, idx) {
+  var s = mp[side];
+  if (!s.awaitingPower) return;
+  s.awaitingPower = false;
+  if (s._powerAutoTimer) { clearTimeout(s._powerAutoTimer); s._powerAutoTimer = null; }
+
+  var powers = (s.role === "angel") ? ANGEL_POWERS : DEVIL_POWERS;
+  var p = powers[idx];
+  if (!p) return;
+
+  var overlayId = (side === "left") ? "power-overlay-left" : "power-overlay-right";
+  document.getElementById(overlayId).style.display = "none";
+
+  s.powersUsed++;
+  var opp = (side === "left") ? "right" : "left";
+  sfxSuperPower();
+
+  switch(p.type) {
+    case "fire":
+      applyDamage(opp, 5, side);
+      if (s.role === "angel") {
+        spawnAngelAttack(side, "fire");
+      } else {
+        spawnDevilPower_Fire(side);
+      }
+      break;
+    case "lightning":
+      applyDamage(opp, 3, side);
+      s.hp = Math.min(s.hpMax, s.hp + 2);
+      updateSideHUD(side);
+      if (s.role === "angel") {
+        spawnAngelAttack(side, "lightning");
+      } else {
+        spawnDevilPower_Lightning(side);
+      }
+      break;
+    case "shield":
+      s.shieldCharges = 2;
+      updateSideHUD(side);
+      if (s.role === "angel") {
+        triggerPerSideFlash(side, "rgba(100,150,255,0.35)", 400);
+        addEffect("shieldDomeMaterialise", { cx: getAngelCX(side), cy: getAngelCY(side), r: 70 }, 800);
+      } else {
+        spawnDevilPower_Shield(side);
+      }
+      break;
+    case "heal":
+      s.hp = Math.min(s.hpMax, s.hp + 4);
+      updateSideHUD(side);
+      if (s.role === "angel") {
+        spawnAngelAttack(side, "heal");
+      } else {
+        spawnDevilPower_Blood(side);
+      }
+      break;
+  }
+
+  scheduleNextQuestion(side, 2000);
+}
+
+// ============================================================
+// SHOOTING ATTACKS
+// ============================================================
+function handleShoot(side) {
+  if (!mp.battleActive) return;
+  var s = mp[side];
+  if (!s) return;
+
+  var now = Date.now();
+  if (now - s.lastShotTime < 500) return; // max 2/sec
+  s.lastShotTime = now;
+  s.shotsFired++;
+
+  // Determine damage
+  var dmg = (s.stage >= 3) ? 2 : 1;
+  var opp = (side === "left") ? "right" : "left";
+
+  // Fire visual
+  spawnShootAttack(side, s.stage, s.role);
+
+  // Hit after slight delay
+  setTimeout(function() {
+    if (!mp.battleActive) return;
+    applyDamage(opp, dmg, side);
+    sfxAttackHit();
+  }, 350);
+}
+
+function spawnShootAttack(side, stage, role) {
+  var ax, ay, bx2, by2;
+  if (side === "left") {
+    // Angel is on left of center, devil is on right of center
+    ax  = CENTER_X + 30;   ay  = MP_H * 0.4;
+    bx2 = CENTER_X + CENTER_W - 80; by2 = MP_H * 0.38;
+  } else {
+    // Devil shoots from right toward left
+    ax  = CENTER_X + CENTER_W - 80; ay  = MP_H * 0.38;
+    bx2 = CENTER_X + 30;            by2 = MP_H * 0.4;
+  }
+
+  if (role === "angel") {
+    switch(stage) {
+      case 0: spawnFeebleSpark(ax, ay, bx2, by2); break;
+      case 1: spawnLightBolt(ax, ay, bx2, by2); break;
+      case 2: spawnHolyArrow(ax, ay, bx2, by2); break;
+      case 3: spawnSacredLance(ax, ay, bx2, by2); break;
+      case 4: spawnDivineBarrage(ax, ay, bx2, by2); break;
+    }
+  } else {
+    spawnDevilShoot(ax, ay, bx2, by2, stage);
+  }
+}
+
+// Devil shooting attacks — dark themed equivalents
+function spawnDevilShoot(ax, ay, bx2, by2, stage) {
+  switch(stage) {
+    case 0: spawnDarkSpark(ax, ay, bx2, by2); break;
+    case 1: spawnDarkBolt(ax, ay, bx2, by2); break;
+    case 2: spawnShadowArrow(ax, ay, bx2, by2); break;
+    case 3: spawnDarkLance(ax, ay, bx2, by2); break;
+    case 4: spawnInfernoBarrage(ax, ay, bx2, by2); break;
+  }
+}
+
+function spawnDarkSpark(ax, ay, bx2, by2) {
+  var count = 5 + Math.floor(Math.random()*4);
+  for (var i=0; i<count; i++) {
+    var t2 = i/(count-1);
+    var wobble = (Math.random()-0.5)*18;
+    var nx = -(by2-ay), ny = (bx2-ax);
+    var len = Math.sqrt(nx*nx+ny*ny)||1;
+    particles.push({
+      x: ax+(bx2-ax)*t2+(nx/len)*wobble,
+      y: ay+(by2-ay)*t2+(ny/len)*wobble,
+      vx:(Math.random()-0.5)*0.6, vy:(Math.random()-0.5)*0.6,
+      life:0.55+Math.random()*0.2, decay:0.04+Math.random()*0.04,
+      r:1.5+Math.random()*1.5,
+      color:Math.random()<0.5?"#7755aa":"#553388",
+      alpha:0.4+Math.random()*0.2, glow:null
+    });
+  }
+}
+
+function spawnDarkBolt(ax, ay, bx2, by2) {
+  addEffect("darkBolt", { ax, ay, bx:bx2, by:by2 }, 220);
+  var count = 15+Math.floor(Math.random()*6);
+  for (var i=0; i<count; i++) {
+    var t2 = Math.random();
+    var spread = (Math.random()-0.5)*10;
+    var nx = -(by2-ay), ny = (bx2-ax);
+    var len = Math.sqrt(nx*nx+ny*ny)||1;
+    particles.push({
+      x: ax+(bx2-ax)*t2+(nx/len)*spread,
+      y: ay+(by2-ay)*t2+(ny/len)*spread,
+      vx:(Math.random()-0.5)*1.2, vy:(Math.random()-0.5)*1.2,
+      life:1, decay:0.07+Math.random()*0.04,
+      r:1.5+Math.random()*2,
+      color:Math.random()<0.6?"#8800ff":"#aa44ff",
+      alpha:0.8, glow:"#8800ff"
+    });
+  }
+}
+
+function spawnShadowArrow(ax, ay, bx2, by2) {
+  addEffect("shadowArrow", { ax, ay, bx:bx2, by:by2 }, 320);
+  var count = 18;
+  for (var i=0; i<count; i++) {
+    var t2 = Math.random();
+    var spread = (Math.random()-0.5)*14;
+    var nx = -(by2-ay), ny = (bx2-ax);
+    var len = Math.sqrt(nx*nx+ny*ny)||1;
+    var delay = t2*180;
+    (function(d) {
+      setTimeout(function() {
+        particles.push({
+          x: ax+(bx2-ax)*t2+(nx/len)*spread,
+          y: ay+(by2-ay)*t2+(ny/len)*spread,
+          vx:(Math.random()-0.5)*1.5, vy:-Math.random()*1.5,
+          life:1, decay:0.04+Math.random()*0.03,
+          r:2+Math.random()*2.5,
+          color:Math.random()<0.65?"#00aaaa":"#006688",
+          alpha:1, glow:"#006688"
+        });
+      }, d);
+    })(delay);
+  }
+  setTimeout(function() {
+    spawnParticleBurst(bx2, by2, 14, "#00aaaa", 4, 3);
+    spawnParticleBurst(bx2, by2, 6, "#005566", 3, 2);
+  }, 300);
+}
+
+function spawnDarkLance(ax, ay, bx2, by2) {
+  addEffect("darkLance", { ax, ay, bx:bx2, by:by2 }, 270);
+  var count = 22;
+  for (var i=0; i<count; i++) {
+    var t2 = Math.random();
+    var spread = (Math.random()-0.5)*18;
+    var nx = -(by2-ay), ny = (bx2-ax);
+    var len = Math.sqrt(nx*nx+ny*ny)||1;
+    var delay = t2*160;
+    (function(d) {
+      setTimeout(function() {
+        particles.push({
+          x: ax+(bx2-ax)*t2+(nx/len)*spread,
+          y: ay+(by2-ay)*t2+(ny/len)*spread,
+          vx:(Math.random()-0.5)*2, vy:-Math.random()*2-0.5,
+          life:1, decay:0.03+Math.random()*0.025,
+          r:2+Math.random()*3,
+          color:Math.random()<0.6?"#cc2200":"#880000",
+          alpha:1, glow:"#880000"
+        });
+      }, d);
+    })(delay);
+  }
+  setTimeout(function() {
+    addEffect("starBurst", { x:bx2, y:by2, color:"#cc2200" }, 500);
+    spawnParticleBurst(bx2, by2, 20, "#cc2200", 6, 4);
+    spawnParticleBurst(bx2, by2, 10, "#880000", 4, 2);
+  }, 250);
+}
+
+function spawnInfernoBarrage(ax, ay, bx2, by2) {
+  addEffect("infernoBarrage", { ax, ay, bx:bx2, by:by2 }, 450);
+  var orbCount = 20;
+  for (var i=0; i<orbCount; i++) {
+    var t2 = Math.random();
+    var nx = -(by2-ay), ny = (bx2-ax);
+    var len = Math.sqrt(nx*nx+ny*ny)||1;
+    var orbitOffset = Math.sin(t2*Math.PI*6+i)*22;
+    var delay = t2*200;
+    (function(d) {
+      setTimeout(function() {
+        particles.push({
+          x: ax+(bx2-ax)*t2+(nx/len)*orbitOffset,
+          y: ay+(by2-ay)*t2+(ny/len)*orbitOffset,
+          vx:(nx/len)*(1.5+Math.random()), vy:(ny/len)*(1.5+Math.random())-1,
+          life:1, decay:0.03+Math.random()*0.02,
+          r:2.5+Math.random()*3,
+          color:Math.random()<0.5?"#cc2200":(Math.random()<0.5?"#880000":"#ff4400"),
+          alpha:1, glow:"#cc2200"
+        });
+      }, d);
+    })(delay);
+  }
+  setTimeout(function() {
+    addEffect("starBurst", { x:bx2, y:by2, color:"#cc2200" }, 600);
+    addEffect("shockwave",  { x:bx2, y:by2, color:"#660000" }, 700);
+    spawnParticleBurst(bx2, by2, 40, "#cc2200", 9, 5);
+    spawnParticleBurst(bx2, by2, 20, "#880000", 6, 3);
+    // Fire spirals — purple lightning for chaos
+    for (var j=0; j<4; j++) {
+      (function(jj) {
+        setTimeout(function() {
+          addEffect("darkLightning", { cx:bx2, cy:by2 }, 300);
+        }, jj*60);
+      })(j);
+    }
+  }, 420);
+}
+
+// ============================================================
+// DEVIL POWER VISUALS
+// ============================================================
+function spawnDevilPower_Fire(side) {
+  var tx = (side === "left") ? CENTER_X + CENTER_W - 80 : CENTER_X + 80;
+  var ty = MP_H * 0.38;
+  // Dark red/black fireball + skull smoke
+  addEffect("devilFireball", { ax: getDevilX(side), ay: MP_H*0.4, bx:tx, by:ty }, 600);
+  spawnParticleBurst(tx, ty, 30, "#cc2200", 8, 5);
+  spawnParticleBurst(tx, ty, 15, "#440000", 5, 3);
+  // Skull smoke particles drifting up
+  for (var i=0; i<20; i++) {
+    particles.push({
+      x: tx+(Math.random()-0.5)*50, y: ty+(Math.random()-0.5)*30,
+      vx:(Math.random()-0.5)*1.5, vy:-(1+Math.random()*2.5),
+      life:1, decay:0.01+Math.random()*0.015,
+      r:3+Math.random()*5,
+      color:Math.random()<0.5?"#220000":"#330011",
+      alpha:0.7, glow:"#660000"
+    });
+  }
+  // Red tint on opponent's side
+  triggerPerSideFlash((side==="left")?"right":"left", "rgba(200,0,0,0.4)", 400);
+  addEffect("shockwave", { x:tx, y:ty, color:"#cc0000" }, 600);
+}
+
+function spawnDevilPower_Lightning(side) {
+  // Purple lightning bolts rising from below
+  var cx = (side === "left") ? CENTER_X + CENTER_W - 80 : CENTER_X + 80;
+  var cy = MP_H * 0.4;
+  for (var i=0; i<4; i++) {
+    (function(ii) {
+      setTimeout(function() {
+        addEffect("devilLightningBolt", { cx:cx+(Math.random()-0.5)*60, cy:cy }, 350);
+      }, ii*70);
+    })(i);
+  }
+  // Heal particles — dark green mist rising from self
+  var selfCX = getAngelCX(side);
+  for (var j=0; j<25; j++) {
+    particles.push({
+      x: selfCX+(Math.random()-0.5)*60, y: MP_H*0.5+Math.random()*30,
+      vx:(Math.random()-0.5)*1, vy:-(0.8+Math.random()*2),
+      life:1, decay:0.018+Math.random()*0.015,
+      r:3+Math.random()*4,
+      color:Math.random()<0.6?"#004400":"#002200",
+      alpha:0.7, glow:"#004400"
+    });
+  }
+}
+
+function spawnDevilPower_Shield(side) {
+  var cx = getAngelCX(side);
+  var cy = MP_H * 0.42;
+  // Dark purple dome
+  addEffect("devilShieldDome", { cx:cx, cy:cy, r:70 }, 900);
+  triggerPerSideFlash(side, "rgba(80,0,120,0.35)", 350);
+}
+
+function spawnDevilPower_Blood(side) {
+  var cx = getAngelCX(side);
+  var cy = MP_H * 0.45;
+  // Red swirling particles converging
+  for (var i=0; i<30; i++) {
+    var angle = (i/30)*Math.PI*2;
+    var r = 80 + Math.random()*40;
+    particles.push({
+      x: cx + Math.cos(angle)*r, y: cy + Math.sin(angle)*r,
+      vx: -Math.cos(angle)*2.5, vy: -Math.sin(angle)*2.5,
+      life:1, decay:0.02+Math.random()*0.02,
+      r:3+Math.random()*4,
+      color:Math.random()<0.6?"#cc0022":"#880011",
+      alpha:0.9, glow:"#880011"
+    });
+  }
+  // Crimson pulse
+  addEffect("bloodPulse", { cx:cx, cy:cy }, 600);
+}
+
+// Helper: get center X of the character for a side
+function getAngelCX(side) {
+  if (side === "left") {
+    // Angel (left) is at CENTER_X + ~30
+    return CENTER_X + 30 + 48*2.2; // approximate center
+  } else {
+    return CENTER_X + CENTER_W - 80 + 48*1.5;
+  }
+}
+function getDevilX(side) {
+  return side === "left" ? CENTER_X + 20 : CENTER_X + CENTER_W - 100;
+}
+function getAngelCY(side) { return MP_H * 0.4; }
+
+// ============================================================
+// CUSTOM EFFECT RENDERERS
+// ============================================================
+// These handle devil-specific effect types not in assets.js.
+// Called separately from renderEffects() in the render loop.
+// assets.js renderEffects() handles its own types and also expires
+// any unknown types by duration — so our custom types must be
+// rendered AND spliced here before renderEffects() is called.
+function renderCustomEffects() {
+  var now = Date.now();
+  for (var i = activeEffects.length-1; i>=0; i--) {
+    var ef = activeEffects[i];
+    var CUSTOM_TYPES = {
+      "darkBolt":1,"shadowArrow":1,"darkLance":1,"infernoBarrage":1,
+      "devilLightningBolt":1,"devilShieldDome":1,"bloodPulse":1,"darkLightning":1,"zoneTint":1
+    };
+    if (!CUSTOM_TYPES[ef.type]) continue;
+
+    var age = now - ef.start;
+    var t = age / ef.duration; // 0..>1
+    if (t >= 1) { activeEffects.splice(i,1); continue; }
+    var p2 = ef.params;
+
+    switch(ef.type) {
+      case "darkBolt": {
+        ctx.save();
+        ctx.strokeStyle = "#8800ff";
+        ctx.lineWidth = 3+2*(1-t);
+        ctx.shadowColor = "#8800ff"; ctx.shadowBlur = 12;
+        ctx.globalAlpha = 1-t;
+        ctx.beginPath();
+        ctx.moveTo(p2.ax, p2.ay); ctx.lineTo(p2.bx, p2.by);
+        ctx.stroke();
+        ctx.restore();
+        break;
+      }
+      case "shadowArrow": {
+        var ex = p2.ax+(p2.bx-p2.ax)*Math.min(1,t*1.4);
+        var ey = p2.ay+(p2.by-p2.ay)*Math.min(1,t*1.4);
+        ctx.save();
+        ctx.strokeStyle = "#00aaaa"; ctx.lineWidth = 4+2*(1-t);
+        ctx.shadowColor = "#00aaaa"; ctx.shadowBlur = 14;
+        ctx.globalAlpha = 1-t*0.5;
+        ctx.beginPath(); ctx.moveTo(p2.ax, p2.ay); ctx.lineTo(ex, ey); ctx.stroke();
+        ctx.globalAlpha = (1-t)*0.6;
+        ctx.strokeStyle = "#004466"; ctx.lineWidth = 8+4*(1-t);
+        ctx.beginPath(); ctx.moveTo(p2.ax, p2.ay); ctx.lineTo(ex, ey); ctx.stroke();
+        ctx.restore();
+        break;
+      }
+      case "darkLance": {
+        ctx.save();
+        ctx.globalAlpha = 1-t;
+        ctx.strokeStyle = "#cc2200"; ctx.lineWidth = 8*(1-t)+2;
+        ctx.shadowColor = "#880000"; ctx.shadowBlur = 20;
+        ctx.beginPath(); ctx.moveTo(p2.ax,p2.ay); ctx.lineTo(p2.bx,p2.by); ctx.stroke();
+        ctx.strokeStyle = "#ff4400"; ctx.lineWidth = 3*(1-t);
+        ctx.beginPath(); ctx.moveTo(p2.ax,p2.ay); ctx.lineTo(p2.bx,p2.by); ctx.stroke();
+        ctx.restore();
+        break;
+      }
+      case "infernoBarrage": {
+        var bw = 16+8*(1-t);
+        ctx.save();
+        ctx.globalAlpha = 1-t*0.7;
+        var grad = ctx.createLinearGradient(p2.ax,p2.ay,p2.bx,p2.by);
+        grad.addColorStop(0,"rgba(100,0,0,0.9)");
+        grad.addColorStop(0.4,"rgba(200,30,0,0.95)");
+        grad.addColorStop(1,"rgba(255,80,0,0.8)");
+        ctx.strokeStyle = grad; ctx.lineWidth = bw;
+        ctx.shadowColor = "#cc2200"; ctx.shadowBlur = 30;
+        ctx.beginPath(); ctx.moveTo(p2.ax,p2.ay); ctx.lineTo(p2.bx,p2.by); ctx.stroke();
+        ctx.restore();
+        break;
+      }
+      case "devilLightningBolt": {
+        ctx.save(); ctx.globalAlpha = 1-t;
+        ctx.strokeStyle = "#aa00ff"; ctx.lineWidth = 2+2*(1-t);
+        ctx.shadowColor = "#8800ff"; ctx.shadowBlur = 12;
+        ctx.beginPath();
+        var x0=p2.cx, y0=p2.cy+80;
+        ctx.moveTo(x0,y0);
+        for (var seg=0; seg<5; seg++) {
+          x0 += (Math.random()-0.5)*30;
+          y0 -= 15+Math.random()*10;
+          ctx.lineTo(x0,y0);
+        }
+        ctx.stroke(); ctx.restore();
+        break;
+      }
+      case "devilShieldDome": {
+        var phase = t < 0.2 ? t/0.2 : (t<0.7 ? 1 : 1-(t-0.7)/0.3);
+        ctx.save();
+        ctx.globalAlpha = 0.5*phase;
+        var grad2 = ctx.createRadialGradient(p2.cx,p2.cy,10,p2.cx,p2.cy,p2.r);
+        grad2.addColorStop(0,"rgba(100,0,180,0.1)");
+        grad2.addColorStop(0.7,"rgba(80,0,140,0.3)");
+        grad2.addColorStop(1,"rgba(60,0,100,0.6)");
+        ctx.fillStyle = grad2;
+        ctx.beginPath(); ctx.arc(p2.cx,p2.cy,p2.r*phase,0,Math.PI*2); ctx.fill();
+        ctx.strokeStyle = "#8800ff"; ctx.lineWidth = 2; ctx.globalAlpha = 0.7*phase;
+        ctx.shadowColor = "#8800ff"; ctx.shadowBlur = 15;
+        ctx.beginPath(); ctx.arc(p2.cx,p2.cy,p2.r*phase,0,Math.PI*2); ctx.stroke();
+        ctx.restore();
+        break;
+      }
+      case "bloodPulse": {
+        var rb = p2.r || 60;
+        ctx.save();
+        ctx.globalAlpha = (1-t)*0.6;
+        ctx.strokeStyle = "#cc0022"; ctx.lineWidth = 4*(1-t)+1;
+        ctx.shadowColor = "#880011"; ctx.shadowBlur = 20;
+        ctx.beginPath(); ctx.arc(p2.cx, p2.cy, rb*t*2, 0, Math.PI*2); ctx.stroke();
+        ctx.restore();
+        break;
+      }
+      case "darkLightning": {
+        ctx.save(); ctx.globalAlpha = (1-t)*0.9;
+        ctx.strokeStyle="#aa00ff"; ctx.lineWidth=2+2*(1-t);
+        ctx.shadowColor="#8800ff"; ctx.shadowBlur=15;
+        ctx.beginPath();
+        var lx=(p2.cx||300), ly=(p2.cy||200);
+        ctx.moveTo(lx+(Math.random()-0.5)*80, ly-80);
+        for(var s2=0;s2<6;s2++){lx+=(Math.random()-0.5)*30;ly+=12+Math.random()*10;ctx.lineTo(lx,ly);}
+        ctx.stroke(); ctx.restore();
+        break;
+      }
+      case "zoneTint": {
+        ctx.save();
+        ctx.globalAlpha = (1-t)*0.6;
+        ctx.fillStyle = p2.color;
+        ctx.fillRect(p2.x, 0, p2.w, MP_H);
+        ctx.restore();
+        break;
+      }
+    }
+  }
+}
+
+// ============================================================
+// APPLY DAMAGE
+// ============================================================
+function applyDamage(side, dmg, fromSide) {
+  var s = mp[side];
+  if (!s || !mp.battleActive) return;
+
+  // Check shield
+  if (s.shieldCharges > 0) {
+    s.shieldCharges--;
+    updateSideHUD(side);
+    sfxAttackHit();
+    spawnFloatText("BLOCKED!", side==="left" ? 100 : 700, 180, "#88aaff", 16);
+    return;
+  }
+
+  s.hp = Math.max(0, s.hp - dmg);
+  s.flash = 8;
+  updateSideHUD(side);
+  sfxAttackHit();
+  triggerPerSideFlash(side, "rgba(255,50,50,0.35)", 200);
+
+  spawnParticleBurst(
+    side==="left" ? CENTER_X+80 : CENTER_X+CENTER_W-80,
+    MP_H*0.4, 12, "#ff4444", 4, 3
+  );
+  spawnFloatText("-" + dmg, side==="left" ? 100 : 700, 200, "#ff4444", 18);
+
+  if (s.hp <= 0) {
+    checkBattleEnd();
+  }
+}
+
+function checkBattleEnd() {
+  if (!mp.battleActive) return;
+  var leftDead  = mp.left.hp  <= 0;
+  var rightDead = mp.right.hp <= 0;
+
+  if (!leftDead && !rightDead) return;
+
+  mp.battleActive = false;
+
+  // Clear timers
+  stopBattleTimers();
+
+  if (leftDead && rightDead) {
+    // Draw
+    sfxTransition();
+    setTimeout(function() {
+      showRoundEnd("draw");
+    }, 1200);
+  } else {
+    var winner = leftDead ? "right" : "left";
+    sfxVictory();
+    setTimeout(function() {
+      showRoundEnd(winner);
+    }, 1200);
+  }
+}
+
+function stopBattleTimers() {
+  ["left","right"].forEach(function(side) {
+    if (mp[side + "_qTimer"]) { clearTimeout(mp[side + "_qTimer"]); mp[side + "_qTimer"] = null; }
+    if (mp[side]) {
+      if (mp[side]._qExpireTimer) { clearTimeout(mp[side]._qExpireTimer); mp[side]._qExpireTimer = null; }
+      if (mp[side]._powerAutoTimer) { clearTimeout(mp[side]._powerAutoTimer); mp[side]._powerAutoTimer = null; }
+      if (mp[side].feedbackTimeout) { clearTimeout(mp[side].feedbackTimeout); mp[side].feedbackTimeout = null; }
+      if (mp[side].battleFeedbackTimeout) { clearTimeout(mp[side].battleFeedbackTimeout); mp[side].battleFeedbackTimeout = null; }
+    }
+  });
+  if (mp.trainingInterval) { clearInterval(mp.trainingInterval); mp.trainingInterval = null; }
+  stopVoiceRecognition();
+}
+
+// ============================================================
+// ROUND END / MATCH END
+// ============================================================
+function showRoundEnd(winnerSide) {
+  hideBattleUI();
+
+  var re = document.getElementById("round-end-screen");
+  re.style.display = "flex";
+
+  // Update scores
+  var isDraw = (winnerSide === "draw");
+  if (winnerSide === "left") {
+    mp.scores[0]++;
+    document.getElementById("round-end-title").textContent = "PLAYER 1 WINS!";
+    document.getElementById("round-end-title").style.color = mp.left.role === "angel" ? "#aaddff" : "#ff8888";
+  } else if (winnerSide === "right") {
+    mp.scores[1]++;
+    document.getElementById("round-end-title").textContent = "PLAYER 2 WINS!";
+    document.getElementById("round-end-title").style.color = mp.right.role === "angel" ? "#aaddff" : "#ff8888";
+  } else {
+    document.getElementById("round-end-title").textContent = "DRAW!";
+    document.getElementById("round-end-title").style.color = "#ffd700";
+  }
+
+  document.getElementById("round-end-score").textContent = mp.scores[0] + " — " + mp.scores[1];
+
+  // Determine next round roles
+  var swapMsg = "";
+  if (!isDraw) {
+    var nextRound = mp.round + 1;
+    var nextP1IsAngel = (nextRound % 2 === 1);
+    swapMsg = "Round " + nextRound + ": P1 = " + (nextP1IsAngel?"ANGEL":"DEVIL") + " | P2 = " + (nextP1IsAngel?"DEVIL":"ANGEL");
+  } else {
+    swapMsg = "Draw! Replaying this round with same roles.";
+  }
+  document.getElementById("round-end-swap").textContent = swapMsg;
+  mp._lastRoundWasDraw = isDraw;
+
+  // Auto advance after 5 seconds
+  var autoCount = 5;
+  document.getElementById("round-end-auto").textContent = "Auto-advancing in " + autoCount + "s...";
+  if (mp.roundEndTimer) clearInterval(mp.roundEndTimer);
+  var autoTimer = setInterval(function() {
+    autoCount--;
+    document.getElementById("round-end-auto").textContent = "Auto-advancing in " + autoCount + "s...";
+    if (autoCount <= 0) {
+      clearInterval(autoTimer);
+      startNextRound();
+    }
+  }, 1000);
+  mp.roundEndTimer = autoTimer;
+
+  // Accumulate per-player stats
+  mp.p1Stats.shotsFired += mp.left.shotsFired;
+  mp.p1Stats.powersUsed += mp.left.powersUsed;
+  mp.p2Stats.shotsFired += mp.right.shotsFired;
+  mp.p2Stats.powersUsed += mp.right.powersUsed;
+}
+
+function startNextRound() {
+  if (mp.roundEndTimer) { clearInterval(mp.roundEndTimer); mp.roundEndTimer = null; }
+  document.getElementById("round-end-screen").style.display = "none";
+
+  // Check if match is over
+  var p1Wins = mp.scores[0], p2Wins = mp.scores[1];
+
+  // Check for match winner
+  if (p1Wins >= 2) { showMatchEnd(1); return; }
+  if (p2Wins >= 2) { showMatchEnd(2); return; }
+  if (mp.round >= mp.maxRounds && !mp.suddenDeath) {
+    if (p1Wins > p2Wins)      { showMatchEnd(1); return; }
+    else if (p2Wins > p1Wins) { showMatchEnd(2); return; }
+    else {
+      // 1-1 tiebreak — sudden death
+      mp.suddenDeath = true;
+      mp.round = 4;
+      startPreRound();
+      return;
+    }
+  }
+  if (mp.suddenDeath) {
+    // After sudden death
+    if (p1Wins > p2Wins)      { showMatchEnd(1); return; }
+    else if (p2Wins > p1Wins) { showMatchEnd(2); return; }
+    // Another draw in sudden death — replay
+    startPreRound();
+    return;
+  }
+
+  // Advance to next round (only if no draw on previous round)
+  // If it was a draw, mp.round stays the same; if it was a win, advance.
+  // We detect "was it a draw" by checking if scores advanced since last round
+  // Simpler: track this via a flag set in showRoundEnd
+  if (!mp._lastRoundWasDraw) mp.round++;
+  mp._lastRoundWasDraw = false;
+
+  startPreRound();
+}
+
+function showMatchEnd(winner) {
+  hideBattleUI();
+  document.getElementById("round-end-screen").style.display = "none";
+
+  var me = document.getElementById("match-end-screen");
+  me.style.display = "flex";
+
+  var titleStr = winner ? ("PLAYER " + winner + " IS THE CHAMPION!") : "IT'S A TIE!";
+  document.getElementById("match-end-title").textContent = titleStr;
+  document.getElementById("match-end-score").textContent = mp.scores[0] + " — " + mp.scores[1];
+
+  var stats = [
+    "Player 1 — Shots Fired: " + mp.p1Stats.shotsFired + " | Powers Used: " + mp.p1Stats.powersUsed,
+    "Player 2 — Shots Fired: " + mp.p2Stats.shotsFired + " | Powers Used: " + mp.p2Stats.powersUsed,
+  ].join("\n");
+  document.getElementById("match-end-stats").textContent = stats;
+  sfxVictory();
+}
+
+// ============================================================
+// HUD HELPERS
+// ============================================================
+function showLobby() {
+  hideBattleUI();
+  document.getElementById("pre-round-screen").style.display = "none";
+  document.getElementById("round-end-screen").style.display = "none";
+  document.getElementById("match-end-screen").style.display = "none";
+  document.getElementById("training-center-msg").style.display = "none";
+  document.getElementById("battle-center-hud").style.display = "none";
+  document.getElementById("lobby-bg-overlay").style.display = "block";
+  document.getElementById("lobby-screen").style.display = "flex";
+  mp.phase = "lobby";
+  stopBattleTimers();
+  mp.battleActive = false;
+}
+
+function hideBattleUI() {
+  document.getElementById("hud-left-panel").style.display = "none";
+  document.getElementById("hud-right-panel").style.display = "none";
+  document.getElementById("split-dividers").style.display = "none";
+  document.getElementById("power-overlay-left").style.display = "none";
+  document.getElementById("power-overlay-right").style.display = "none";
+  document.getElementById("battle-center-hud").style.display = "none";
+  document.getElementById("training-center-msg").style.display = "none";
+  document.getElementById("left-ready-banner").style.display = "none";
+  document.getElementById("right-ready-banner").style.display = "none";
+}
+
+function showHUDPanels(mode) {
+  document.getElementById("lobby-bg-overlay").style.display = "none";
+  document.getElementById("lobby-screen").style.display = "none";
+  document.getElementById("hud-left-panel").style.display = "flex";
+  document.getElementById("hud-right-panel").style.display = "flex";
+  document.getElementById("split-dividers").style.display = "block";
+
+  // In training mode show count labels, hide in battle
+  if (mode === "battle") {
+    document.getElementById("left-train-count").style.display = "none";
+    document.getElementById("right-train-count").style.display = "none";
+  }
+}
+
+function updateSideHUD(side) {
+  var s = mp[side];
+  if (!s) return;
+
+  var isAngel = (s.role === "angel");
+  var stageNames = isAngel ? STAGE_NAMES : DEVIL_STAGE_NAMES;
+  var stageColors = isAngel
+    ? ["#888888","#aaaaff","#88ccff","#ffd700","#ffaa00"]
+    : ["#aa5599","#cc66ff","#5599aa","#cc4422","#ff2244"];
+
+  document.getElementById(side + "-stage-name").textContent = stageNames[s.stage] || stageNames[0];
+  document.getElementById(side + "-stage-name").style.color = stageColors[s.stage] || "#888";
+
+  var hpPct = Math.max(0, s.hp / s.hpMax * 100);
+  document.getElementById(side + "-hp-fill").style.width = hpPct + "%";
+  // HP bar color: green>yellow>red
+  var hpColor = hpPct > 50
+    ? (isAngel ? "linear-gradient(90deg,#00cc44,#44ff88)" : "linear-gradient(90deg,#cc2222,#ff4444)")
+    : (hpPct > 25
+      ? "linear-gradient(90deg,#cc8800,#ffcc00)"
+      : "linear-gradient(90deg,#cc2200,#ff4400)");
+  document.getElementById(side + "-hp-fill").style.background = hpColor;
+  document.getElementById(side + "-hp-cur").textContent = s.hp;
+  document.getElementById(side + "-hp-max").textContent = s.hpMax;
+
+  var pwPct = Math.min(100, s.powerBar);
+  document.getElementById(side + "-power-fill").style.width = pwPct + "%";
+
+  var shieldEl = document.getElementById(side + "-shield-row");
+  if (s.shieldCharges > 0) {
+    shieldEl.textContent = "🛡 Shield: " + s.shieldCharges;
+  } else {
+    shieldEl.textContent = "";
+  }
+
+  // Player name
+  var nameEl = document.getElementById(side + "-player-name");
+  var pNum = (side === "left") ? "P1" : "P2";
+  nameEl.textContent = pNum + " — " + (isAngel ? "ANGEL" : "DEVIL");
+  nameEl.style.color = isAngel ? "#aaddff" : "#ff8888";
+}
+
+function updateBCH() {
+  document.getElementById("bch-round").textContent = (mp.suddenDeath ? "SD" : (mp.round + "/" + mp.maxRounds));
+  document.getElementById("bch-score").textContent = mp.scores[0] + " — " + mp.scores[1];
+}
+
+// Per-side flash (uses the DOM flash-overlay restricted to a zone via clip + colored rect on canvas)
+function triggerPerSideFlash(side, color, dur) {
+  // Draw a colored overlay on that side's zone in canvas space
+  // We'll do it via a canvas effect (temporary coloring in render loop)
+  var fx = (side === "left") ? 0 : RIGHT_X;
+  var fw = LEFT_W;
+  activeEffects.push({ type:"zoneTint", params:{ x:fx, w:fw, color:color }, start:Date.now(), duration:dur });
+}
+
+// ============================================================
+// RENDERING
+// ============================================================
+function renderLobby() {
+  // Draw background for selected level
+  var bg = bgCache[mp.level];
+  if (!bg) { bg = bgCache[mp.level] = createBgCanvas(mp.level); }
+  ctx.drawImage(bg, 0, 0);
+  updateAmbients(mp.level);
+  drawAmbients();
+  updateParticles();
+  drawParticles();
+  renderCustomEffects();
+  renderEffects();
+}
+
+function renderTraining() {
+  renderBattlefield();
+
+  // Draw both characters in center zone (training positions)
+  var lvl = mp.level;
+  var scale = 2.5;
+  var angelW = 48*scale, angelH = 64*scale;
+
+  // Left player (angel or devil)
+  var leftX = CENTER_X + 20;
+  var leftY  = MP_H*0.5 - angelH*0.5 + angelBobOffset;
+  drawSideCharacter("left", leftX, leftY, scale);
+
+  // Right player
+  var rightX = CENTER_X + CENTER_W - 20 - angelW;
+  var rightY  = MP_H*0.5 - angelH*0.5 + bossBobOffset;
+  drawSideCharacter("right", rightX, rightY, scale);
+
+  // VS text in center
+  ctx.save();
+  ctx.font = "bold 28px Segoe UI";
+  ctx.textAlign = "center";
+  ctx.fillStyle = "rgba(255,255,255,0.2)";
+  ctx.fillText("VS", CENTER_X + CENTER_W*0.5, MP_H*0.5);
+  ctx.restore();
+
+  updateParticles();
+  drawParticles();
+  renderCustomEffects();
+  renderEffects();
+}
+
+function renderBattle() {
+  renderBattlefield();
+  drawBattleCharacters();
+  updateParticles();
+  drawParticles();
+  renderCustomEffects();
+  renderEffects();
+}
+
+function renderBattlefield() {
+  var lvl = mp.level;
+  var bg = bgCache[lvl];
+  if (!bg) { bg = bgCache[lvl] = createBgCanvas(lvl); }
+
+  // Draw center zone background (full canvas background)
+  ctx.drawImage(bg, 0, 0);
+
+  // Darken side zones slightly to make HUD readable
+  ctx.save();
+  ctx.fillStyle = "rgba(0,0,0,0.35)";
+  ctx.fillRect(0, 0, LEFT_W, MP_H);
+  ctx.fillRect(RIGHT_X, 0, RIGHT_W, MP_H);
+  ctx.restore();
+
+  // Battle atmosphere overlay on center
+  ctx.save();
+  ctx.fillStyle = "rgba(0,0,0,0.2)";
+  ctx.fillRect(CENTER_X, 0, CENTER_W, MP_H);
+  ctx.restore();
+
+  updateAmbients(lvl);
+  drawAmbients();
+}
+
+function drawBattleCharacters() {
+  var scale = 2.8;
+  var angelW = 48*scale, angelH = 64*scale;
+
+  // Left player character
+  var leftX = CENTER_X + 30;
+  var leftY  = MP_H*0.45 - angelH*0.5 + angelBobOffset;
+  drawSideCharacter("left", leftX, leftY, scale);
+
+  // Right player character (flipped visually via ctx.scale)
+  var rightX = CENTER_X + CENTER_W - 30 - angelW;
+  var rightY  = MP_H*0.45 - angelH*0.5 + bossBobOffset;
+  drawSideCharacterFlipped("right", rightX, rightY, scale);
+
+  // Draw hit flash overlay
+  ["left","right"].forEach(function(side) {
+    var s = mp[side];
+    if (s && s.flash > 0) {
+      s.flash--;
+      var fx2 = (side === "left") ? leftX : rightX;
+      var fy2 = (side === "left") ? leftY : rightY;
+      ctx.save();
+      ctx.globalAlpha = s.flash / 8 * 0.5;
+      ctx.fillStyle = "#ff4444";
+      ctx.fillRect(fx2, fy2, angelW, angelH);
+      ctx.restore();
+    }
+  });
+}
+
+function drawSideCharacter(side, x, y, scale) {
+  var s = mp[side];
+  if (!s) return;
+  if (s.role === "angel") {
+    // Use seraphimSparkles from this side's state
+    var savedSparkles = state.seraphimSparkles;
+    state.seraphimSparkles = s.seraphimSparkles;
+    drawAngel(x, y, scale, s.stage, angelFrame);
+    s.seraphimSparkles = state.seraphimSparkles;
+    state.seraphimSparkles = savedSparkles;
+  } else {
+    drawDevilCharacter(x, y, scale, s.stage);
+  }
+}
+
+function drawSideCharacterFlipped(side, x, y, scale) {
+  var s = mp[side];
+  if (!s) return;
+  var w = 48*scale;
+  ctx.save();
+  ctx.translate(x + w, y);
+  ctx.scale(-1, 1);
+  if (s.role === "angel") {
+    var savedSparkles = state.seraphimSparkles;
+    state.seraphimSparkles = s.seraphimSparkles;
+    drawAngel(0, 0, scale, s.stage, angelFrame);
+    s.seraphimSparkles = state.seraphimSparkles;
+    state.seraphimSparkles = savedSparkles;
+  } else {
+    drawDevilCharacter(0, 0, scale, s.stage);
+  }
+  ctx.restore();
+}
+
+// Draw devil character — uses boss sprites (devil/violet) or drawn shapes
+function drawDevilCharacter(x, y, scale, stage) {
+  // Use devil or violet sprite for high stages, drawn shapes for low stages
+  var col = bossFrame % 3;
+  // We use the boss drawing functions adapted for devil role
+  // Draw devil sprite or tinted boss
+  if (stage >= 3) {
+    // Use devil queen sprite as Devil character
+    drawSprite("devil", 0, col, x, y, scale * (48/48), 1.0);
+    // Dark aura
+    ctx.save();
+    ctx.globalAlpha = 0.3;
+    ctx.shadowColor = "#8800ff"; ctx.shadowBlur = 20;
+    ctx.fillStyle = "rgba(100,0,180,0.35)";
+    ctx.fillRect(x, y, 48*scale, 64*scale);
+    ctx.restore();
+  } else if (stage >= 2) {
+    drawSprite("devil", 0, col, x, y, scale * (48/48), 0.8);
+    ctx.save();
+    ctx.globalAlpha = 0.25;
+    ctx.fillStyle = "rgba(80,0,140,0.4)";
+    ctx.fillRect(x, y, 48*scale, 64*scale);
+    ctx.restore();
+  } else {
+    // Low stage — draw basic devil silhouette
+    drawSimpleDevil(x, y, scale, stage);
+  }
+  // Stage 4: extra dark aura
+  if (stage >= 4) {
+    var now4 = Date.now();
+    var pulse4 = 0.5+0.5*Math.sin(now4*0.004);
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    ctx.globalAlpha = 0.15+0.1*pulse4;
+    ctx.fillStyle = "#880000";
+    ctx.fillRect(x, y, 48*scale, 64*scale);
+    ctx.restore();
+  }
+}
+
+function drawSimpleDevil(x, y, scale, stage) {
+  var s = scale * 16;
+  var cx = x + 48*scale*0.5, cy = y + 64*scale*0.5;
+  var alpha = stage === 0 ? 0.5 : 0.85;
+  var color = stage === 0 ? "#664488" : "#992255";
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  // Body
+  ctx.fillStyle = color;
+  ctx.shadowColor = color; ctx.shadowBlur = 8;
+  ctx.beginPath(); ctx.ellipse(cx, cy, s*1.2, s*1.8, 0, 0, Math.PI*2); ctx.fill();
+  // Head
+  ctx.beginPath(); ctx.arc(cx, cy - s*1.6, s, 0, Math.PI*2); ctx.fill();
+  // Horns
+  ctx.strokeStyle = "#ffaa00"; ctx.lineWidth = scale*2;
+  ctx.beginPath(); ctx.moveTo(cx - s*0.5, cy - s*2.2);
+  ctx.lineTo(cx - s*0.3, cy - s*3); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx + s*0.5, cy - s*2.2);
+  ctx.lineTo(cx + s*0.3, cy - s*3); ctx.stroke();
+  // Eyes
+  ctx.fillStyle = "#ff2222";
+  ctx.beginPath(); ctx.arc(cx-s*0.3, cy-s*1.7, s*0.2, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx+s*0.3, cy-s*1.7, s*0.2, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.restore();
+}
+
+function renderTitle() {
+  renderLobby();
+}
+
+// ============================================================
+// VOICE RECOGNITION
+// ============================================================
+var voiceRecognition = null;
+var NUMBER_WORDS = {
+  // English
+  "one":1,"two":2,"three":3,"four":4,"five":5,"six":6,"seven":7,"eight":8,
+  "nine":9,"ten":10,"eleven":11,"twelve":12,"thirteen":13,"fourteen":14,
+  "fifteen":15,"sixteen":16,"seventeen":17,"eighteen":18,"nineteen":19,
+  "twenty":20,"twenty one":21,"twenty two":22,"twenty three":23,"twenty four":24,
+  "twenty five":25,"twenty six":26,"twenty seven":27,"twenty eight":28,
+  "twenty nine":29,"thirty":30,"thirty one":31,"thirty two":32,"thirty three":33,
+  "thirty four":34,"thirty five":35,"thirty six":36,"forty":40,"forty two":42,
+  "forty eight":48,"fifty":50,"fifty four":54,"sixty":60,
+  // French
+  "un":1,"deux":2,"trois":3,"quatre":4,"cinq":5,"sept":7,"huit":8,
+  "neuf":9,"dix":10,"onze":11,"douze":12,"treize":13,"quatorze":14,
+  "quinze":15,"seize":16,"dix sept":17,"dix-sept":17,"dix huit":18,"dix-huit":18,
+  "dix neuf":19,"dix-neuf":19,"vingt":20,"vingt et un":21,"vingt-et-un":21,
+  "vingt deux":22,"vingt-deux":22,"vingt trois":23,"vingt-trois":23,
+  "vingt quatre":24,"vingt-quatre":24,"vingt cinq":25,"vingt-cinq":25,
+  "vingt six":26,"vingt-six":26,"vingt sept":27,"vingt-sept":27,
+  "vingt huit":28,"vingt-huit":28,"vingt neuf":29,"vingt-neuf":29,
+  "trente":30,"trente six":36,"trente-six":36,"quarante":40,"quarante deux":42,
+  "quarante-deux":42,"quarante huit":48,"quarante-huit":48,"cinquante":50,
+  "cinquante quatre":54,"cinquante-quatre":54,"soixante":60,
+};
+
+function startVoiceRecognition() {
+  if (!window.SpeechRecognition && !window.webkitSpeechRecognition) return;
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  voiceRecognition = new SR();
+  voiceRecognition.continuous = true;
+  voiceRecognition.interimResults = true;
+  voiceRecognition.lang = (mp.lang === "fr") ? "fr-FR" : "en-US";
+  voiceRecognition.onresult = function(event) {
+    var transcript = "";
+    for (var i=event.resultIndex; i<event.results.length; i++) {
+      transcript += event.results[i][0].transcript;
+    }
+    processVoiceInput(transcript.toLowerCase().trim());
+  };
+  voiceRecognition.onerror = function() {};
+  voiceRecognition.onend = function() {
+    if (mp.battleActive) {
+      try { voiceRecognition.start(); } catch(e) {}
+    }
+  };
+  try { voiceRecognition.start(); } catch(e) {}
+}
+
+function stopVoiceRecognition() {
+  if (voiceRecognition) {
+    try { voiceRecognition.stop(); } catch(e) {}
+    voiceRecognition = null;
+  }
+}
+
+function processVoiceInput(transcript) {
+  // Try direct number parse first
+  var directNum = parseInt(transcript);
+  var num = isNaN(directNum) ? (NUMBER_WORDS[transcript] || null) : directNum;
+
+  if (!num) {
+    // Try matching phrases within transcript
+    var best = null;
+    var bestLen = 0;
+    for (var phrase in NUMBER_WORDS) {
+      if (transcript.indexOf(phrase) >= 0 && phrase.length > bestLen) {
+        best = NUMBER_WORDS[phrase];
+        bestLen = phrase.length;
+      }
+    }
+    num = best;
+  }
+
+  if (!num) return;
+
+  // Check both sides for matching answer
+  var matchLeft  = checkVoiceAnswer("left",  num);
+  var matchRight = checkVoiceAnswer("right", num);
+
+  if (matchLeft && matchRight) {
+    // Both match — side whose question appeared first (use the one with earlier battleQ)
+    // Simple: prefer left
+    matchRight = false;
+  }
+
+  if (matchLeft)  triggerVoiceAnswer("left",  num);
+  if (matchRight) triggerVoiceAnswer("right", num);
+}
+
+function checkVoiceAnswer(side, num) {
+  var s = mp[side];
+  if (!s || !mp.battleActive) return false;
+  if (s.battleAnswerLocked || !s.battleQ || s.awaitingPower) return false;
+  return (num === s.battleQ.a * s.battleQ.b);
+}
+
+function triggerVoiceAnswer(side, num) {
+  handleBattleAnswer(side, num.toString());
+}
+
+// ============================================================
+// INPUT HANDLING
+// ============================================================
+window.addEventListener("keydown", function(e) {
+  if (mp.phase === "lobby") return;
+
+  var key = e.key.toLowerCase();
+
+  // Don't prevent default for function keys etc.
+  if (["tab","shift","control","alt","meta","escape","f1","f2","f3","f4","f5"].indexOf(key) >= 0) return;
+
+  // Training phase
+  if (mp.phase === "training") {
+    if (LEFT_ANS_KEYS.hasOwnProperty(key)) {
+      var leftIdx = LEFT_ANS_KEYS[key];
+      var btn = document.getElementById("left-btn" + leftIdx);
+      if (btn && btn.dataset.val) handleTrainingAnswer("left", btn.dataset.val);
+    }
+    if (RIGHT_ANS_KEYS.hasOwnProperty(key)) {
+      var rightIdx = RIGHT_ANS_KEYS[key];
+      var btn2 = document.getElementById("right-btn" + rightIdx);
+      if (btn2 && btn2.dataset.val) handleTrainingAnswer("right", btn2.dataset.val);
+    }
+    return;
+  }
+
+  // Battle phase
+  if (mp.phase === "battle") {
+    // Left player: answer keys
+    if (LEFT_ANS_KEYS.hasOwnProperty(key)) {
+      e.preventDefault();
+      var lIdx = LEFT_ANS_KEYS[key];
+      if (mp.left.awaitingPower) {
+        selectPower("left", lIdx);
+      } else {
+        var lBtn = document.getElementById("left-btn" + lIdx);
+        if (lBtn && lBtn.dataset.val && lBtn.dataset.mode === "battle") {
+          handleBattleAnswer("left", lBtn.dataset.val);
+        }
+      }
+    }
+    // Right player: answer keys
+    if (RIGHT_ANS_KEYS.hasOwnProperty(key)) {
+      e.preventDefault();
+      var rIdx = RIGHT_ANS_KEYS[key];
+      if (mp.right.awaitingPower) {
+        selectPower("right", rIdx);
+      } else {
+        var rBtn = document.getElementById("right-btn" + rIdx);
+        if (rBtn && rBtn.dataset.val && rBtn.dataset.mode === "battle") {
+          handleBattleAnswer("right", rBtn.dataset.val);
+        }
+      }
+    }
+    // Left player: shoot keys
+    if (LEFT_SHOOT_KEYS.has(key)) {
+      e.preventDefault();
+      handleShoot("left");
+    }
+    // Right player: shoot keys
+    if (RIGHT_SHOOT_KEYS.has(key)) {
+      e.preventDefault();
+      handleShoot("right");
+    }
+  }
+});
+
+// Mouse click routing for answer buttons
+function setupAnswerBtnListeners() {
+  ["left","right"].forEach(function(side) {
+    for (var i=0; i<4; i++) {
+      (function(s2, idx) {
+        var btn = document.getElementById(s2 + "-btn" + idx);
+        btn.addEventListener("click", function() {
+          unlockAudio();
+          if (!btn.dataset.val) return;
+          if (mp.phase === "training") {
+            handleTrainingAnswer(s2, btn.dataset.val);
+          } else if (mp.phase === "battle") {
+            handleBattleAnswer(s2, btn.dataset.val);
+          }
+        });
+      })(side, i);
+    }
+  });
+}
+setupAnswerBtnListeners();
+
+// ============================================================
+// GAME LOOP
+// ============================================================
+function gameLoop(ts) {
+  requestAnimationFrame(gameLoop);
+  updateAngelAnim();
+  updateBossAnim();
+  applyShake();
+
+  ctx.clearRect(0, 0, W, H);
+
+  switch(mp.phase) {
+    case "lobby":     renderLobby();    break;
+    case "training":  renderTraining(); break;
+    case "battle":    renderBattle();   break;
+    default:          renderLobby();    break;
+  }
+}
+
+// Patch spawnAngel attacks to use correct side positions
+function spawnAngelAttack(side, type) {
+  var ax = (side === "left") ? CENTER_X + 80 : CENTER_X + CENTER_W - 130;
+  var ay = MP_H * 0.4;
+  var bx2 = (side === "left") ? CENTER_X + CENTER_W - 80 : CENTER_X + 80;
+  var by2 = MP_H * 0.38;
+
+  switch(type) {
+    case "fire":      spawnBossAttack_DevilQueen(ax, ay, bx2, by2); break; // reuse fire effect
+    case "lightning": spawnHolySlash(ax, ay, bx2, by2); break;
+    case "heal":
+      spawnParticleBurst(ax, ay, 20, "#00ff88", 4, 3);
+      addEffect("screenTint", { color:"#00ff88" }, 300);
+      break;
+  }
+}
+
+// ============================================================
+// INIT
+// ============================================================
+function init() {
+  // Pre-build background for default level
+  bgCache[0] = createBgCanvas(0);
+  resetAmbients(0);
+
+  // Initialize state for assets.js (drawAngel uses state.seraphimSparkles)
+  if (!window.state) {
+    window.state = { seraphimSparkles: [], frostSparkles: [] };
+  }
+
+  showLobby();
+  requestAnimationFrame(gameLoop);
+}
+
+loadSprites(function() {
+  init();
+});
+</script>
+</body>
+</html>
