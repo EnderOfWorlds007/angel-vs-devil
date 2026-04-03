@@ -1,0 +1,2633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Angel vs Devil — Online Multiplayer</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body {
+  width:100%; height:100%; overflow:hidden;
+  background:#000; font-family:'Segoe UI',system-ui,sans-serif;
+}
+#game-wrap {
+  position:relative; margin:auto;
+  display:flex; align-items:center; justify-content:center;
+  width:100vw; height:100vh;
+}
+#game-container {
+  position:relative; overflow:hidden;
+  image-rendering:pixelated;
+}
+#game-canvas {
+  display:block; image-rendering:pixelated;
+  position:absolute; top:0; left:0;
+}
+#flash-overlay {
+  position:absolute; top:0; left:0; width:100%; height:100%;
+  pointer-events:none; opacity:0;
+  transition:opacity 0.05s; background:white;
+}
+#float-container {
+  position:absolute; top:0; left:0; width:100%; height:100%;
+  pointer-events:none; overflow:hidden;
+}
+
+/* ============================================================
+   LOBBY SCREEN
+   ============================================================ */
+#lobby-screen {
+  position:absolute; top:0; left:0; width:100%; height:100%;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  background:transparent; pointer-events:auto; z-index:10;
+}
+#lobby-title {
+  font-size:36px; font-weight:900; letter-spacing:3px; color:#ffd700;
+  text-shadow:0 0 30px rgba(255,215,0,0.7), 0 4px 8px rgba(0,0,0,0.9);
+  text-align:center; margin-bottom:3px;
+}
+#lobby-sub {
+  font-size:12px; color:rgba(255,255,255,0.5); letter-spacing:3px; margin-bottom:18px;
+}
+#lobby-panels {
+  display:flex; gap:24px; align-items:flex-start; margin-bottom:14px;
+}
+.lobby-panel {
+  background:rgba(10,6,30,0.85); border:2px solid rgba(255,215,0,0.3);
+  border-radius:14px; padding:16px 20px; min-width:200px;
+  display:flex; flex-direction:column; gap:10px;
+}
+.lobby-panel-title {
+  font-size:12px; font-weight:bold; color:#ffd700; letter-spacing:3px;
+  text-transform:uppercase; margin-bottom:4px; text-align:center;
+}
+.level-btn {
+  padding:7px 11px; font-size:11px; font-weight:bold; letter-spacing:1px;
+  border:2px solid #444; border-radius:8px;
+  background:rgba(20,15,50,0.85); color:#888; cursor:pointer;
+  transition:all 0.15s; text-transform:uppercase; text-align:center;
+}
+.level-btn:hover { border-color:#aaa; color:#ccc; }
+.level-btn.selected { border-color:#ffd700; color:#ffd700; box-shadow:0 0 12px rgba(255,215,0,0.3); background:rgba(50,40,20,0.9); }
+.opt-row { display:flex; gap:5px; justify-content:center; }
+.opt-btn {
+  padding:5px 10px; font-size:11px; font-weight:bold; letter-spacing:1px;
+  border:2px solid #444; border-radius:6px;
+  background:rgba(20,15,50,0.7); color:#666; cursor:pointer;
+  transition:all 0.15s; text-transform:uppercase;
+}
+.opt-btn:hover { border-color:#aaa; color:#ccc; }
+.opt-btn.selected { border-color:#ffd700; color:#ffd700; background:rgba(50,40,20,0.9); }
+.opt-label { font-size:10px; color:rgba(255,255,255,0.45); letter-spacing:2px; margin-bottom:4px; text-align:center; }
+.big-btn {
+  padding:12px 36px; font-size:18px; font-weight:bold; letter-spacing:2px;
+  border:3px solid #ffd700; border-radius:12px;
+  background:rgba(30,20,60,0.9); color:#ffd700; cursor:pointer;
+  transition:all 0.15s; text-transform:uppercase;
+  box-shadow:0 0 20px rgba(255,215,0,0.3), 0 4px 12px rgba(0,0,0,0.6);
+}
+.big-btn:hover { background:rgba(60,40,100,0.95); box-shadow:0 0 35px rgba(255,215,0,0.6); transform:scale(1.04); }
+.big-btn:active { transform:scale(0.98); }
+.join-code-row {
+  display:flex; gap:6px; align-items:center; justify-content:center;
+}
+#join-code-input {
+  width:100px; padding:8px 10px; font-size:18px; font-weight:bold;
+  text-align:center; letter-spacing:6px; text-transform:uppercase;
+  background:rgba(10,8,30,0.9); border:2px solid rgba(255,215,0,0.5);
+  border-radius:8px; color:#ffd700; outline:none;
+}
+#join-code-input::placeholder { color:rgba(255,215,0,0.25); letter-spacing:3px; }
+#join-code-input:focus { border-color:#ffd700; box-shadow:0 0 10px rgba(255,215,0,0.4); }
+.join-btn {
+  padding:8px 16px; font-size:14px; font-weight:bold; letter-spacing:1px;
+  border:2px solid #ffd700; border-radius:8px;
+  background:rgba(30,20,60,0.9); color:#ffd700; cursor:pointer;
+  transition:all 0.12s; text-transform:uppercase;
+}
+.join-btn:hover { background:rgba(60,40,100,0.95); box-shadow:0 0 16px rgba(255,215,0,0.5); }
+#lobby-footer {
+  margin-top:10px; display:flex; gap:20px; align-items:center;
+}
+.link-btn {
+  font-size:12px; color:rgba(255,255,255,0.4); text-decoration:underline;
+  cursor:pointer; letter-spacing:1px; background:none; border:none;
+}
+.link-btn:hover { color:rgba(255,255,255,0.8); }
+#lobby-bg-overlay {
+  position:absolute; top:0; left:0; width:100%; height:100%;
+  background:rgba(0,0,0,0.5); pointer-events:none; z-index:9;
+}
+.lobby-status {
+  font-size:12px; color:rgba(255,255,255,0.5); letter-spacing:1px;
+  text-align:center; margin-top:4px; min-height:18px;
+}
+.lobby-status.error { color:#ff6666; }
+.lobby-status.ok { color:#88ffaa; }
+
+/* WAITING SCREEN */
+#waiting-screen {
+  position:absolute; top:0; left:0; width:100%; height:100%;
+  display:none; flex-direction:column; align-items:center; justify-content:center;
+  background:rgba(0,0,0,0.75); z-index:15;
+}
+#waiting-code-big {
+  font-size:80px; font-weight:900; color:#ffd700; letter-spacing:18px;
+  text-shadow:0 0 60px rgba(255,215,0,0.8);
+  margin-bottom:10px;
+}
+#waiting-msg {
+  font-size:16px; color:rgba(255,255,255,0.7); letter-spacing:2px; margin-bottom:8px;
+}
+#waiting-url {
+  font-size:11px; color:rgba(255,255,255,0.35); letter-spacing:1px;
+  margin-bottom:20px; word-break:break-all; max-width:500px; text-align:center;
+}
+#waiting-cancel {
+  font-size:12px; color:rgba(255,255,255,0.35); text-decoration:underline;
+  cursor:pointer; border:none; background:none; margin-top:10px;
+}
+#waiting-cancel:hover { color:rgba(255,255,255,0.7); }
+
+/* ============================================================
+   PRE-ROUND SCREEN
+   ============================================================ */
+#pre-round-screen {
+  position:absolute; top:0; left:0; width:100%; height:100%;
+  display:none; flex-direction:column; align-items:center; justify-content:center;
+  background:rgba(0,0,0,0.7); pointer-events:none; z-index:10;
+}
+#pre-round-title {
+  font-size:42px; font-weight:900; color:#ffd700; letter-spacing:4px;
+  text-shadow:0 0 40px rgba(255,215,0,0.8); margin-bottom:16px;
+}
+#pre-round-roles {
+  font-size:16px; color:#fff; letter-spacing:2px; margin-bottom:32px;
+  text-align:center; line-height:2;
+}
+#pre-round-countdown {
+  font-size:88px; font-weight:900; color:#fff;
+  text-shadow:0 0 60px rgba(255,255,255,0.6);
+}
+
+/* ============================================================
+   ONLINE BATTLE HUD — full screen, my character left
+   ============================================================ */
+#hud-left-panel {
+  position:absolute; top:0; left:0; width:22%; height:100%;
+  display:none; flex-direction:column; align-items:stretch;
+  padding:8px 6px 8px 8px; pointer-events:auto; z-index:5;
+  background:linear-gradient(90deg, rgba(0,0,0,0.6) 0%, transparent 100%);
+}
+#hud-right-panel {
+  position:absolute; top:0; right:0; width:22%; height:100%;
+  display:none; flex-direction:column; align-items:stretch;
+  padding:8px 8px 8px 6px; pointer-events:auto; z-index:5;
+  background:linear-gradient(270deg, rgba(0,0,0,0.6) 0%, transparent 100%);
+}
+#hud-center-top {
+  position:absolute; top:6px; left:22%; width:56%;
+  display:none; align-items:center; justify-content:center;
+  pointer-events:none; z-index:5; gap:16px;
+}
+.bch-item { text-align:center; }
+.bch-label { font-size:9px; color:rgba(255,255,255,0.4); letter-spacing:1px; }
+.bch-val   { font-size:16px; font-weight:bold; color:#ffd700; }
+
+.mp-player-name { font-size:11px; font-weight:bold; letter-spacing:2px; text-transform:uppercase; margin-bottom:4px; text-align:center; }
+.mp-stage-name  { font-size:10px; letter-spacing:1px; text-align:center; margin-bottom:5px; opacity:0.8; }
+.mp-hp-label    { font-size:9px; color:rgba(255,255,255,0.5); letter-spacing:1px; margin-bottom:2px; }
+.mp-hp-wrap     { width:100%; height:10px; background:rgba(0,0,0,0.6); border-radius:5px; border:1px solid rgba(255,255,255,0.2); overflow:hidden; margin-bottom:2px; }
+.mp-hp-fill     { height:100%; border-radius:5px; transition:width 0.25s ease; }
+.mp-hp-num      { font-size:10px; color:rgba(255,255,255,0.6); margin-bottom:6px; text-align:right; }
+.mp-power-label { font-size:9px; color:rgba(255,255,255,0.5); letter-spacing:1px; margin-bottom:2px; }
+.mp-power-wrap  { width:100%; height:8px; background:rgba(0,0,0,0.6); border-radius:4px; border:1px solid rgba(255,255,255,0.15); overflow:hidden; margin-bottom:8px; }
+.mp-power-fill  { height:100%; border-radius:4px; background:linear-gradient(90deg,#ff8800,#ffdd00,#ffffff); transition:width 0.3s ease; box-shadow:0 0 6px rgba(255,200,0,0.5); }
+.mp-shield-row  { font-size:10px; color:#88aaff; margin-bottom:6px; text-align:center; min-height:14px; }
+.mp-train-count { font-size:10px; color:rgba(255,255,255,0.4); text-align:center; margin-bottom:4px; letter-spacing:1px; display:none; }
+.mp-question-wrap { flex:1; display:flex; flex-direction:column; justify-content:flex-end; padding-bottom:6px; }
+.mp-q-text      { font-size:22px; font-weight:bold; color:#fff; text-align:center; letter-spacing:2px; margin-bottom:6px; text-shadow:0 0 16px rgba(255,220,100,0.8); min-height:30px; }
+.mp-ans-grid    { display:grid; grid-template-columns:1fr 1fr; gap:4px; }
+.mp-ans-btn     { padding:7px 4px; border-radius:7px; border:2px solid rgba(255,255,255,0.2); background:rgba(10,10,40,0.85); color:#fff; font-size:13px; font-weight:bold; cursor:pointer; transition:all 0.1s; text-align:center; }
+.mp-ans-btn:hover { border-color:#ffd700; background:rgba(40,40,80,0.95); }
+.mp-ans-btn.correct { background:rgba(0,160,70,0.9); border-color:#00ee88; }
+.mp-ans-btn.wrong   { background:rgba(160,30,30,0.9); border-color:#ff4444; }
+.mp-ans-btn.idle    { opacity:0.3; pointer-events:none; }
+.mp-ready-banner { position:absolute; top:50%; transform:translateY(-50%); font-size:18px; font-weight:900; color:#ffd700; letter-spacing:3px; text-shadow:0 0 20px rgba(255,215,0,0.8); text-align:center; pointer-events:none; display:none; width:100%; z-index:8; }
+
+#training-center-msg { position:absolute; top:50%; left:22%; width:56%; transform:translateY(-50%); text-align:center; display:none; pointer-events:none; z-index:8; }
+#training-center-msg span { font-size:26px; font-weight:900; color:#ffd700; letter-spacing:4px; text-shadow:0 0 30px rgba(255,215,0,0.9); }
+
+/* Power selection overlay (inside my HUD panel) */
+#power-overlay-me {
+  position:absolute; top:0; left:0; width:22%; height:100%;
+  display:none; flex-direction:column; align-items:center; justify-content:center;
+  background:rgba(0,0,0,0.8); z-index:15; pointer-events:auto; padding:12px 8px;
+}
+.mp-power-title { font-size:13px; font-weight:bold; color:#ffd700; margin-bottom:10px; letter-spacing:2px; text-align:center; }
+.mp-sp-grid { display:flex; flex-direction:column; gap:7px; width:100%; }
+.mp-sp-btn { display:flex; align-items:center; gap:6px; padding:7px 8px; border-radius:8px; border:2px solid rgba(255,215,0,0.4); background:rgba(20,10,50,0.9); color:#fff; cursor:pointer; transition:all 0.12s; }
+.mp-sp-btn:hover { border-color:#ffd700; background:rgba(50,30,100,0.95); transform:scale(1.03); }
+.mp-sp-icon { font-size:20px; flex-shrink:0; }
+.mp-sp-info { display:flex; flex-direction:column; }
+.mp-sp-name { font-size:11px; font-weight:bold; color:#ffd700; }
+.mp-sp-key  { font-size:9px; color:rgba(255,255,255,0.45); }
+.mp-sp-desc { font-size:9px; color:rgba(255,255,255,0.55); }
+
+/* ============================================================
+   ROUND END / MATCH END
+   ============================================================ */
+#round-end-screen {
+  position:absolute; top:0; left:0; width:100%; height:100%;
+  display:none; flex-direction:column; align-items:center; justify-content:center;
+  background:rgba(0,0,0,0.82); pointer-events:auto; z-index:20;
+}
+#round-end-title { font-size:46px; font-weight:900; letter-spacing:4px; margin-bottom:10px; text-shadow:0 0 40px currentColor; }
+#round-end-score { font-size:22px; font-weight:bold; color:#ffd700; margin-bottom:14px; }
+#round-end-swap  { font-size:14px; color:rgba(255,255,255,0.65); margin-bottom:28px; text-align:center; line-height:1.8; }
+#round-end-auto  { font-size:11px; color:rgba(255,255,255,0.3); margin-top:10px; }
+#match-end-screen {
+  position:absolute; top:0; left:0; width:100%; height:100%;
+  display:none; flex-direction:column; align-items:center; justify-content:center;
+  background:radial-gradient(ellipse at center, rgba(30,10,80,0.96) 0%, rgba(0,0,0,0.99) 100%);
+  pointer-events:auto; z-index:30;
+}
+#match-end-title { font-size:40px; font-weight:900; color:#ffd700; letter-spacing:3px; text-align:center; text-shadow:0 0 40px rgba(255,215,0,0.9); margin-bottom:8px; }
+#match-end-score { font-size:38px; font-weight:bold; color:#fff; margin-bottom:14px; }
+#match-end-stats { font-size:12px; color:rgba(255,255,255,0.55); margin-bottom:28px; text-align:center; line-height:2.0; }
+.match-end-btns { display:flex; gap:12px; flex-wrap:wrap; justify-content:center; }
+.match-end-btns .big-btn { font-size:15px; padding:10px 28px; }
+
+/* RECONNECTING overlay */
+#reconnect-overlay {
+  position:absolute; top:0; left:0; width:100%; height:100%;
+  display:none; flex-direction:column; align-items:center; justify-content:center;
+  background:rgba(0,0,0,0.75); z-index:25;
+}
+#reconnect-msg { font-size:24px; font-weight:900; color:#ffd700; letter-spacing:4px; margin-bottom:12px; }
+#reconnect-count { font-size:14px; color:rgba(255,255,255,0.5); }
+
+@keyframes float-up {
+  0%   { opacity:1; transform:translateX(-50%) translateY(0); }
+  100% { opacity:0; transform:translateX(-50%) translateY(-60px); }
+}
+</style>
+</head>
+<body>
+<div id="game-wrap">
+  <div id="game-container">
+    <canvas id="game-canvas"></canvas>
+    <div id="flash-overlay"></div>
+    <div id="float-container"></div>
+
+    <!-- LOBBY BG OVERLAY -->
+    <div id="lobby-bg-overlay"></div>
+
+    <!-- ========================================================
+         LOBBY SCREEN
+         ======================================================== -->
+    <div id="lobby-screen">
+      <div id="lobby-title">ANGEL vs DEVIL</div>
+      <div id="lobby-sub">ONLINE MULTIPLAYER</div>
+
+      <div id="lobby-panels">
+        <!-- CREATE GAME panel -->
+        <div class="lobby-panel">
+          <div class="lobby-panel-title">Create Game</div>
+
+          <div class="opt-label">Level</div>
+          <div class="opt-row" id="create-level-row">
+            <button class="level-btn selected" data-level="0">L1</button>
+            <button class="level-btn" data-level="1">L2</button>
+            <button class="level-btn" data-level="2">L3</button>
+            <button class="level-btn" data-level="3">L4</button>
+            <button class="level-btn" data-level="4">L5</button>
+          </div>
+
+          <div class="opt-label">Difficulty</div>
+          <div class="opt-row" id="diff-row">
+            <button class="opt-btn" data-diff="easy">Easy</button>
+            <button class="opt-btn selected" data-diff="normal">Normal</button>
+            <button class="opt-btn" data-diff="hard">Hard</button>
+          </div>
+
+          <div class="opt-label">Play As</div>
+          <div class="opt-row" id="role-row">
+            <button class="opt-btn" data-role="angel">Angel</button>
+            <button class="opt-btn selected" data-role="random">Random</button>
+            <button class="opt-btn" data-role="devil">Devil</button>
+          </div>
+
+          <button class="big-btn" id="create-btn" style="font-size:14px;padding:10px 20px;margin-top:4px;">CREATE GAME</button>
+          <div class="lobby-status" id="create-status"></div>
+        </div>
+
+        <!-- JOIN GAME panel -->
+        <div class="lobby-panel">
+          <div class="lobby-panel-title">Join Game</div>
+          <div class="opt-label" style="margin-bottom:8px;">Enter Room Code</div>
+          <div class="join-code-row">
+            <input type="text" id="join-code-input" maxlength="4" placeholder="XXXX" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false">
+          </div>
+          <button class="big-btn" id="join-btn" style="font-size:14px;padding:10px 20px;margin-top:8px;">JOIN</button>
+          <div class="lobby-status" id="join-status"></div>
+        </div>
+      </div>
+
+      <div id="lobby-footer">
+        <button class="link-btn" onclick="window.location='multiplayer.html'">SAME SCREEN</button>
+        <button class="link-btn" onclick="window.location='angel-vs-devil.html'">CAMPAIGN</button>
+      </div>
+    </div>
+
+    <!-- ========================================================
+         WAITING FOR OPPONENT SCREEN
+         ======================================================== -->
+    <div id="waiting-screen">
+      <div style="font-size:13px;color:rgba(255,255,255,0.5);letter-spacing:3px;margin-bottom:10px;">ROOM CODE</div>
+      <div id="waiting-code-big">----</div>
+      <div id="waiting-msg">Waiting for opponent...</div>
+      <div id="waiting-url"></div>
+      <button class="big-btn" id="waiting-cancel">CANCEL</button>
+    </div>
+
+    <!-- ========================================================
+         PRE-ROUND SCREEN
+         ======================================================== -->
+    <div id="pre-round-screen">
+      <div id="pre-round-title">ROUND 1 of 3</div>
+      <div id="pre-round-roles">
+        You: <b id="pre-my-role" style="color:#aaddff">ANGEL</b><br>
+        Opponent: <b id="pre-opp-role" style="color:#ff8888">DEVIL</b>
+      </div>
+      <div id="pre-round-countdown">3</div>
+    </div>
+
+    <!-- ========================================================
+         TRAINING CENTER MESSAGE
+         ======================================================== -->
+    <div id="training-center-msg"><span id="training-center-text">TRAINING</span></div>
+
+    <!-- ========================================================
+         MY HUD PANEL (left side — my character)
+         ======================================================== -->
+    <div id="hud-left-panel">
+      <div class="mp-player-name" id="my-player-name" style="color:#aaddff">YOU — ANGEL</div>
+      <div class="mp-stage-name" id="my-stage-name" style="color:#aaaaff">Weakened</div>
+
+      <div class="mp-hp-label">HP</div>
+      <div class="mp-hp-wrap"><div class="mp-hp-fill" id="my-hp-fill" style="width:100%;background:linear-gradient(90deg,#00cc44,#44ff88)"></div></div>
+      <div class="mp-hp-num"><span id="my-hp-cur">15</span> / <span id="my-hp-max">15</span></div>
+
+      <div class="mp-power-label">POWER</div>
+      <div class="mp-power-wrap"><div class="mp-power-fill" id="my-power-fill" style="width:0%"></div></div>
+
+      <div class="mp-shield-row" id="my-shield-row"></div>
+      <div class="mp-train-count" id="my-train-count"></div>
+
+      <div class="mp-question-wrap">
+        <div class="mp-q-text" id="my-q-text"></div>
+        <div class="mp-ans-grid" id="my-ans-grid">
+          <button class="mp-ans-btn idle" id="my-btn0"></button>
+          <button class="mp-ans-btn idle" id="my-btn1"></button>
+          <button class="mp-ans-btn idle" id="my-btn2"></button>
+          <button class="mp-ans-btn idle" id="my-btn3"></button>
+        </div>
+      </div>
+      <div class="mp-ready-banner" id="my-ready-banner">READY!</div>
+    </div>
+
+    <!-- ========================================================
+         OPPONENT HUD PANEL (right side)
+         ======================================================== -->
+    <div id="hud-right-panel">
+      <div class="mp-player-name" id="opp-player-name" style="color:#ff8888">OPP — DEVIL</div>
+      <div class="mp-stage-name" id="opp-stage-name" style="color:#ff6666">Weakened</div>
+
+      <div class="mp-hp-label">HP</div>
+      <div class="mp-hp-wrap"><div class="mp-hp-fill" id="opp-hp-fill" style="width:100%;background:linear-gradient(90deg,#cc2222,#ff4444)"></div></div>
+      <div class="mp-hp-num"><span id="opp-hp-cur">15</span> / <span id="opp-hp-max">15</span></div>
+
+      <div class="mp-power-label">POWER</div>
+      <div class="mp-power-wrap"><div class="mp-power-fill" id="opp-power-fill" style="width:0%;background:linear-gradient(90deg,#440066,#8800cc,#ff00ff)"></div></div>
+
+      <div class="mp-shield-row" id="opp-shield-row"></div>
+    </div>
+
+    <!-- CENTER HUD -->
+    <div id="hud-center-top">
+      <div class="bch-item">
+        <div class="bch-label">ROUND</div>
+        <div class="bch-val" id="bch-round">1/3</div>
+      </div>
+      <div class="bch-item">
+        <div class="bch-label">SCORE</div>
+        <div class="bch-val" id="bch-score">0 — 0</div>
+      </div>
+    </div>
+
+    <!-- Power selection overlay (mine) -->
+    <div id="power-overlay-me">
+      <div class="mp-power-title">CHOOSE POWER!</div>
+      <div class="mp-sp-grid" id="my-sp-grid"></div>
+    </div>
+
+    <!-- ========================================================
+         ROUND END SCREEN
+         ======================================================== -->
+    <div id="round-end-screen">
+      <div id="round-end-title">YOU WIN!</div>
+      <div id="round-end-score">1 — 0</div>
+      <div id="round-end-swap"></div>
+      <div id="round-end-auto"></div>
+    </div>
+
+    <!-- ========================================================
+         MATCH END SCREEN
+         ======================================================== -->
+    <div id="match-end-screen">
+      <div id="match-end-title">YOU ARE THE CHAMPION!</div>
+      <div id="match-end-score">2 — 1</div>
+      <div id="match-end-stats"></div>
+      <div class="match-end-btns">
+        <button class="big-btn" id="rematch-btn">REMATCH</button>
+        <button class="big-btn" id="back-lobby-btn" style="border-color:#aaa;color:#ccc;background:rgba(30,30,50,0.9)">LOBBY</button>
+      </div>
+    </div>
+
+    <!-- RECONNECTING -->
+    <div id="reconnect-overlay">
+      <div id="reconnect-msg">RECONNECTING...</div>
+      <div id="reconnect-count"></div>
+    </div>
+
+  </div><!-- #game-container -->
+</div><!-- #game-wrap -->
+
+<script src="assets.js"></script>
+<script src="https://unpkg.com/peerjs@1/dist/peerjs.min.js"></script>
+<script>
+"use strict";
+
+// ============================================================
+// CANVAS & CONTAINER SETUP
+// ============================================================
+container = document.getElementById("game-container");
+var onlineCanvas = document.getElementById("game-canvas");
+ctx = onlineCanvas.getContext("2d");
+onlineCanvas.width = W; onlineCanvas.height = H;
+onlineCanvas.style.imageRendering = "pixelated";
+
+function resizeOnline() {
+  var vw = window.innerWidth, vh = window.innerHeight;
+  var scale = Math.min(vw/W, vh/H);
+  var pw = Math.floor(W*scale), ph = Math.floor(H*scale);
+  container.style.width  = pw + "px";
+  container.style.height = ph + "px";
+  onlineCanvas.style.width  = pw + "px";
+  onlineCanvas.style.height = ph + "px";
+}
+window.addEventListener("resize", resizeOnline);
+resizeOnline();
+
+// ============================================================
+// CONSTANTS
+// ============================================================
+var OP_W = W;
+var OP_H = H;
+var SIDE_W   = Math.floor(W * 0.22);   // 176
+var CENTER_X2 = SIDE_W;                 // 176
+var CENTER_W2 = W - SIDE_W*2;          // 448
+
+var MP_STAGE_THRESH = [1, 3, 5, 6];
+
+var DEVIL_STAGE_NAMES = ["Weakened Devil","Awakened","Empowered","Enraged","Unleashed"];
+var DEVIL_ATTACK_COLORS = ["#9966cc","#8800ff","#00aaaa","#cc2200","#660033"];
+
+var ANGEL_POWERS = [
+  { key:"1", icon:"🔥", name:"Wings of Fire",  desc:"5 damage + explosion",  keyLabel:"[1]", type:"fire"      },
+  { key:"2", icon:"⚡", name:"Holy Lightning", desc:"3 dmg + heal 2 HP",     keyLabel:"[2]", type:"lightning" },
+  { key:"3", icon:"🛡️", name:"Divine Shield",  desc:"Block 2 attacks",       keyLabel:"[3]", type:"shield"    },
+  { key:"4", icon:"💚", name:"Healing Potion", desc:"Restore 4 HP",          keyLabel:"[4]", type:"heal"      }
+];
+var DEVIL_POWERS = [
+  { key:"1", icon:"💀", name:"Hellfire Blast", desc:"5 damage + skull fire", keyLabel:"[1]", type:"fire"      },
+  { key:"2", icon:"⚡", name:"Dark Lightning", desc:"3 dmg + heal 2 HP",     keyLabel:"[2]", type:"lightning" },
+  { key:"3", icon:"🌑", name:"Shadow Shield",  desc:"Block 2 attacks",       keyLabel:"[3]", type:"shield"    },
+  { key:"4", icon:"🩸", name:"Blood Potion",   desc:"Restore 4 HP",          keyLabel:"[4]", type:"heal"      }
+];
+
+var UNAMBIGUOUS_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+function genRoomCode() {
+  var code = "";
+  for (var i=0; i<4; i++) {
+    code += UNAMBIGUOUS_CHARS[Math.floor(Math.random()*UNAMBIGUOUS_CHARS.length)];
+  }
+  return code;
+}
+
+var JOIN_URL_BASE = "https://enderofworlds007.github.io/angel-vs-devil/online.html?join=";
+
+// ============================================================
+// NETWORK STATE
+// ============================================================
+var net = {
+  peer: null,
+  conn: null,
+  isHost: false,
+  roomCode: "",
+  connected: false,
+  lastDataTime: 0,
+  reconnectTimer: null,
+  disconnected: false,
+  stateInterval: null,
+};
+
+// ============================================================
+// GAME STATE
+// ============================================================
+var on = {
+  phase: "lobby",
+  round: 1, maxRounds: 3,
+  scores: [0, 0],   // [my wins, opp wins]
+  draws: 0,
+  level: 0,
+  difficulty: "normal",
+  hostRole: "angel",
+  clientRole: "devil",
+  suddenDeath: false,
+  _lastRoundWasDraw: false,
+
+  // my side
+  me: null,
+  // opponent side (state from host snapshots on client, from host's own tracking for host)
+  opp: null,
+
+  trainingBothDone: false,
+  firstFinished: null,
+  trainingInterval: null,
+  battleActive: false,
+  roundEndTimer: null,
+};
+
+// create a side state object
+function makeSide(role) {
+  return {
+    role: role,
+    stage: 0, hp: 15, hpMax: 15,
+    powerBar: 0, streak: 0, correctCount: 0,
+    wrongAnswers: [],
+    shieldCharges: 0,
+    lastShotTime: 0,
+    shotsFired: 0, shotsHit: 0, powersUsed: 0,
+    trainingDone: false,
+    trainQ: [], trainIdx: 0,
+    currentQ: null, answerLocked: false,
+    feedbackTimeout: null,
+    battleQ: null, battleAnswerLocked: false,
+    battleFeedbackTimeout: null,
+    awaitingPower: false,
+    _battlePool: [],
+    _qExpireTimer: null,
+    _qTimer: null,
+    _powerAutoTimer: null,
+    flash: 0,
+    seraphimSparkles: [],
+  };
+}
+
+// ============================================================
+// LOBBY LOGIC
+// ============================================================
+document.querySelectorAll("#create-level-row .level-btn").forEach(function(btn) {
+  btn.addEventListener("click", function() {
+    document.querySelectorAll("#create-level-row .level-btn").forEach(function(b) { b.classList.remove("selected"); });
+    btn.classList.add("selected");
+    on.level = parseInt(btn.dataset.level);
+    if (!bgCache[on.level]) bgCache[on.level] = createBgCanvas(on.level);
+    resetAmbients(on.level);
+  });
+});
+
+document.querySelectorAll("[data-diff]").forEach(function(btn) {
+  btn.addEventListener("click", function() {
+    document.querySelectorAll("[data-diff]").forEach(function(b) { b.classList.remove("selected"); });
+    btn.classList.add("selected");
+    on.difficulty = btn.dataset.diff;
+    gameMode = on.difficulty;
+  });
+});
+
+document.querySelectorAll("[data-role]").forEach(function(btn) {
+  btn.addEventListener("click", function() {
+    document.querySelectorAll("[data-role]").forEach(function(b) { b.classList.remove("selected"); });
+    btn.classList.add("selected");
+  });
+});
+
+document.getElementById("create-btn").addEventListener("click", function() {
+  unlockAudio();
+  startCreateGame();
+});
+document.getElementById("join-btn").addEventListener("click", function() {
+  unlockAudio();
+  startJoinGame();
+});
+document.getElementById("waiting-cancel").addEventListener("click", function() {
+  destroyPeer();
+  showLobby();
+});
+document.getElementById("rematch-btn").addEventListener("click", function() {
+  if (net.isHost) {
+    unlockAudio();
+    on.round = 1; on.scores = [0,0]; on.draws = 0; on.suddenDeath = false;
+    startPreRound();
+  }
+});
+document.getElementById("back-lobby-btn").addEventListener("click", function() {
+  destroyPeer();
+  showLobby();
+});
+
+// Auto-fill code from URL param
+(function() {
+  var params = new URLSearchParams(window.location.search);
+  var joinCode = params.get("join");
+  if (joinCode) {
+    var inp = document.getElementById("join-code-input");
+    inp.value = joinCode.toUpperCase();
+    // Switch focus to show join panel
+  }
+})();
+
+// ============================================================
+// CREATE GAME (HOST)
+// ============================================================
+function startCreateGame() {
+  setCreateStatus("Connecting to PeerJS...", "");
+  var code = genRoomCode();
+  net.roomCode = code;
+  net.isHost = true;
+
+  // Get selected role pref
+  var rolePref = "random";
+  document.querySelectorAll("[data-role]").forEach(function(b) { if (b.classList.contains("selected")) rolePref = b.dataset.role; });
+
+  var peer = new Peer("avd-" + code, {
+    debug: 0,
+    config: { iceServers: [
+      { urls: "stun:stun.l.google.com:19302" },
+      { urls: "stun:stun1.l.google.com:19302" }
+    ]}
+  });
+  net.peer = peer;
+
+  peer.on("open", function(id) {
+    setCreateStatus("", "");
+    showWaiting(code);
+  });
+
+  peer.on("connection", function(conn) {
+    if (net.conn) { conn.close(); return; } // already have one
+    net.conn = conn;
+    setupConn(conn, true);
+
+    conn.on("open", function() {
+      net.connected = true;
+      net.lastDataTime = Date.now();
+      // Assign roles
+      var myRole, oppRole;
+      if (rolePref === "angel") { myRole = "angel"; oppRole = "devil"; }
+      else if (rolePref === "devil") { myRole = "devil"; oppRole = "angel"; }
+      else { myRole = Math.random() < 0.5 ? "angel" : "devil"; oppRole = (myRole==="angel")?"devil":"angel"; }
+      on.hostRole = myRole;
+      on.clientRole = oppRole;
+
+      var cfg = {
+        type: "config",
+        level: on.level,
+        difficulty: on.difficulty,
+        hostRole: on.hostRole,
+        clientRole: on.clientRole,
+        scores: on.scores,
+        round: on.round,
+        maxRounds: on.maxRounds,
+      };
+      conn.send(cfg);
+
+      // Short delay, then start match
+      setTimeout(function() {
+        startMatch();
+      }, 500);
+    });
+  });
+
+  peer.on("error", function(err) {
+    setCreateStatus("Error: " + (err.type || err.message || "PeerJS failed"), "error");
+    destroyPeer();
+  });
+}
+
+// ============================================================
+// JOIN GAME (CLIENT)
+// ============================================================
+function startJoinGame() {
+  var code = document.getElementById("join-code-input").value.toUpperCase().trim();
+  if (code.length < 4) { setJoinStatus("Enter 4-char code", "error"); return; }
+  setJoinStatus("Connecting...", "");
+  net.isHost = false;
+  net.roomCode = code;
+
+  var peer = new Peer(undefined, {
+    debug: 0,
+    config: { iceServers: [
+      { urls: "stun:stun.l.google.com:19302" },
+      { urls: "stun:stun1.l.google.com:19302" }
+    ]}
+  });
+  net.peer = peer;
+
+  peer.on("open", function() {
+    var conn = peer.connect("avd-" + code, { reliable: true });
+    net.conn = conn;
+    setupConn(conn, false);
+
+    var timeout = setTimeout(function() {
+      setJoinStatus("Connection timed out. Is the code correct?", "error");
+      destroyPeer();
+    }, 12000);
+
+    conn.on("open", function() {
+      clearTimeout(timeout);
+      net.connected = true;
+      net.lastDataTime = Date.now();
+      setJoinStatus("Connected! Waiting for host...", "ok");
+    });
+  });
+
+  peer.on("error", function(err) {
+    setJoinStatus("Failed: " + (err.type || "check code"), "error");
+    destroyPeer();
+  });
+}
+
+// ============================================================
+// CONNECTION SETUP
+// ============================================================
+function setupConn(conn, isHost) {
+  conn.on("data", function(data) {
+    net.lastDataTime = Date.now();
+    if (net.disconnected) {
+      net.disconnected = false;
+      hideReconnect();
+    }
+    handleIncomingData(data);
+  });
+
+  conn.on("close", function() {
+    handleDisconnect();
+  });
+
+  conn.on("error", function() {
+    handleDisconnect();
+  });
+}
+
+function handleIncomingData(data) {
+  if (!data || !data.type) return;
+
+  if (!net.isHost) {
+    // CLIENT: receive state/event messages from host
+    switch(data.type) {
+      case "config":
+        on.level = data.level;
+        on.difficulty = data.difficulty;
+        on.hostRole = data.hostRole;
+        on.clientRole = data.clientRole;
+        on.scores = data.scores || [0,0];
+        on.round = data.round || 1;
+        on.maxRounds = data.maxRounds || 3;
+        gameMode = on.difficulty;
+        if (!bgCache[on.level]) bgCache[on.level] = createBgCanvas(on.level);
+        resetAmbients(on.level);
+        break;
+      case "state":
+        applyStateSnapshot(data);
+        break;
+      case "sfx":
+        playSfxByName(data.name);
+        break;
+      case "effect":
+        applyEffectEvent(data);
+        break;
+      case "particle":
+        if (data.burst) spawnParticleBurst(data.burst.x, data.burst.y, data.burst.count, data.burst.color, data.burst.speed, data.burst.life);
+        break;
+      case "floatText":
+        spawnFloatText(data.text, data.x, data.y, data.color, data.size);
+        break;
+      case "shake":
+        triggerShake(data.intensity);
+        break;
+      case "flash":
+        triggerFlash(data.color, data.duration);
+        break;
+      case "pre-round":
+        // Host tells client to show pre-round screen
+        on.round = data.round;
+        on.scores = data.scores;
+        on.suddenDeath = data.suddenDeath || false;
+        showPreRoundClient(data.myRole, data.oppRole);
+        break;
+      case "start-training":
+        on.level = data.level;
+        on.difficulty = data.difficulty;
+        gameMode = on.difficulty;
+        startTrainingPhaseClient();
+        break;
+      case "start-battle":
+        startBattlePhaseClient();
+        break;
+      case "round-result":
+        handleRoundResultClient(data);
+        break;
+      case "match-result":
+        handleMatchResultClient(data);
+        break;
+      case "rematch":
+        on.round = 1; on.scores = [0,0]; on.draws = 0; on.suddenDeath = false;
+        // Will receive pre-round shortly
+        break;
+    }
+  } else {
+    // HOST: receive input from client
+    switch(data.type) {
+      case "shoot":
+        handleShoot("opp");
+        break;
+      case "answer":
+        if (on.phase === "training") {
+          handleTrainingAnswerForSide("opp", data.value.toString());
+        } else if (on.phase === "battle") {
+          handleBattleAnswerForSide("opp", data.value.toString());
+        }
+        break;
+      case "power":
+        selectPowerForSide("opp", data.choice);
+        break;
+    }
+  }
+}
+
+function applyStateSnapshot(snap) {
+  // Client applies state from host
+  var mySnap = snap.client;
+  var oppSnap = snap.host;
+
+  if (!on.me) on.me = makeSide(on.clientRole);
+  if (!on.opp) on.opp = makeSide(on.hostRole);
+
+  // Apply to on.me from mySnap
+  if (mySnap) {
+    on.me.role = mySnap.role;
+    on.me.hp = mySnap.hp;
+    on.me.hpMax = mySnap.hpMax;
+    on.me.stage = mySnap.stage;
+    on.me.powerBar = mySnap.powerBar;
+    on.me.shieldCharges = mySnap.shieldCharges;
+    on.me.flash = mySnap.flash || 0;
+  }
+  // Apply to on.opp from oppSnap
+  if (oppSnap) {
+    on.opp.role = oppSnap.role;
+    on.opp.hp = oppSnap.hp;
+    on.opp.hpMax = oppSnap.hpMax;
+    on.opp.stage = oppSnap.stage;
+    on.opp.powerBar = oppSnap.powerBar;
+    on.opp.shieldCharges = oppSnap.shieldCharges;
+  }
+
+  on.phase = snap.phase;
+  on.round = snap.round || on.round;
+  on.scores = snap.scores || on.scores;
+
+  // Question for client
+  if (snap.clientQuestion && !on.me.battleAnswerLocked) {
+    if (!on.me.battleQ || JSON.stringify(on.me.battleQ) !== JSON.stringify(snap.clientQuestion)) {
+      on.me.battleQ = snap.clientQuestion;
+      showMyQuestion(snap.clientQuestion, "battle");
+    }
+  } else if (!snap.clientQuestion && snap.phase === "battle" && !snap.clientPowerSelect) {
+    // No question pending — clear if locked
+    if (on.me.battleAnswerLocked) {
+      on.me.battleQ = null;
+      on.me.battleAnswerLocked = false;
+      clearMyQuestion();
+    }
+  }
+
+  if (snap.clientPowerSelect && !on.me.awaitingPower) {
+    on.me.awaitingPower = true;
+    showPowerSelectionMe();
+  } else if (!snap.clientPowerSelect && on.me.awaitingPower) {
+    on.me.awaitingPower = false;
+    hidePowerSelectionMe();
+  }
+
+  // Training
+  if (snap.phase === "training" && snap.clientTraining) {
+    var ct = snap.clientTraining;
+    if (!on.me.answerLocked && ct.question) {
+      if (!on.me.currentQ || JSON.stringify(on.me.currentQ) !== JSON.stringify(ct.question)) {
+        on.me.currentQ = ct.question;
+        showMyQuestion(ct.question, "training");
+        updateMyTrainCount(ct.idx, ct.total);
+      }
+    }
+    on.me.stage = ct.stage || 0;
+    on.me.powerBar = ct.powerBar || 0;
+  }
+
+  if (snap.clientTrainingDone && !on.me.trainingDone) {
+    on.me.trainingDone = true;
+    clearMyQuestion();
+    document.getElementById("my-train-count").style.display = "none";
+    document.getElementById("my-ready-banner").style.display = "block";
+  }
+
+  updateMyHUD();
+  updateOppHUD();
+  updateBCH2();
+}
+
+// ============================================================
+// HOST: MATCH FLOW
+// ============================================================
+function startMatch() {
+  on.round = 1;
+  on.scores = [0, 0];
+  on.draws = 0;
+  on.suddenDeath = false;
+  on._lastRoundWasDraw = false;
+  gameMode = on.difficulty;
+  startPreRound();
+}
+
+function startPreRound() {
+  var p1IsAngel = (on.round % 2 === 1);
+
+  // Reassign roles each round
+  if (net.isHost) {
+    // Host is always "me", client is always "opp"
+    // Odd rounds: host=angel, client=devil; even: swap
+    var myRole = p1IsAngel ? on.hostRole : on.clientRole;
+    var oppRole = p1IsAngel ? on.clientRole : on.hostRole;
+
+    // Actually: roles assigned at connection, then swap each round
+    if (on.round === 1) {
+      myRole = on.hostRole;
+      oppRole = on.clientRole;
+    } else {
+      // swap
+      var prevMyRole = on.me ? on.me.role : on.hostRole;
+      myRole = prevMyRole === "angel" ? "devil" : "angel";
+      oppRole = myRole === "angel" ? "devil" : "angel";
+    }
+
+    var hpMap = { easy:18, normal:15, hard:12 };
+    var hp = on.suddenDeath ? 8 : (hpMap[on.difficulty] || 15);
+
+    on.me = makeSide(myRole);
+    on.me.hp = on.me.hpMax = hp;
+    on.opp = makeSide(oppRole);
+    on.opp.hp = on.opp.hpMax = hp;
+
+    hostSend({
+      type: "pre-round",
+      round: on.round,
+      scores: on.scores,
+      suddenDeath: on.suddenDeath,
+      myRole: oppRole,      // what client sees as "my" role
+      oppRole: myRole,      // what client sees as "opp" role
+    });
+  }
+
+  hideBattleUI();
+  document.getElementById("lobby-screen").style.display = "none";
+  document.getElementById("round-end-screen").style.display = "none";
+  document.getElementById("match-end-screen").style.display = "none";
+  document.getElementById("waiting-screen").style.display = "none";
+
+  var preEl = document.getElementById("pre-round-screen");
+  preEl.style.display = "flex";
+
+  var roundLabel = on.suddenDeath ? "SUDDEN DEATH" : ("ROUND " + on.round + " of " + on.maxRounds);
+  document.getElementById("pre-round-title").textContent = roundLabel;
+  document.getElementById("pre-my-role").textContent = on.me ? on.me.role.toUpperCase() : "ANGEL";
+  document.getElementById("pre-opp-role").textContent = on.opp ? on.opp.role.toUpperCase() : "DEVIL";
+  document.getElementById("pre-my-role").style.color = (on.me && on.me.role === "angel") ? "#aaddff" : "#ff8888";
+  document.getElementById("pre-opp-role").style.color = (on.opp && on.opp.role === "angel") ? "#aaddff" : "#ff8888";
+
+  var cdEl = document.getElementById("pre-round-countdown");
+  var count = 3;
+  cdEl.textContent = count;
+  var cdInterval = setInterval(function() {
+    count--;
+    if (count <= 0) {
+      clearInterval(cdInterval);
+      cdEl.textContent = "FIGHT!";
+      setTimeout(function() {
+        preEl.style.display = "none";
+        if (net.isHost) {
+          startTrainingPhase();
+        }
+      }, 700);
+    } else {
+      cdEl.textContent = count;
+      sfxTimerUrgent();
+    }
+  }, 900);
+  sfxTimerTick();
+}
+
+// ============================================================
+// CLIENT: PRE-ROUND
+// ============================================================
+function showPreRoundClient(myRole, oppRole) {
+  hideBattleUI();
+  document.getElementById("lobby-screen").style.display = "none";
+  document.getElementById("round-end-screen").style.display = "none";
+  document.getElementById("match-end-screen").style.display = "none";
+  document.getElementById("waiting-screen").style.display = "none";
+
+  // Set up my/opp sides
+  if (!on.me) on.me = makeSide(myRole);
+  else on.me.role = myRole;
+  if (!on.opp) on.opp = makeSide(oppRole);
+  else on.opp.role = oppRole;
+
+  var preEl = document.getElementById("pre-round-screen");
+  preEl.style.display = "flex";
+  var roundLabel = on.suddenDeath ? "SUDDEN DEATH" : ("ROUND " + on.round + " of " + on.maxRounds);
+  document.getElementById("pre-round-title").textContent = roundLabel;
+  document.getElementById("pre-my-role").textContent = myRole.toUpperCase();
+  document.getElementById("pre-opp-role").textContent = oppRole.toUpperCase();
+  document.getElementById("pre-my-role").style.color = myRole === "angel" ? "#aaddff" : "#ff8888";
+  document.getElementById("pre-opp-role").style.color = oppRole === "angel" ? "#aaddff" : "#ff8888";
+
+  var cdEl = document.getElementById("pre-round-countdown");
+  var count = 3;
+  cdEl.textContent = count;
+  var cdInterval = setInterval(function() {
+    count--;
+    if (count <= 0) {
+      clearInterval(cdInterval);
+      cdEl.textContent = "FIGHT!";
+      setTimeout(function() {
+        preEl.style.display = "none";
+        // Client waits for start-training from host
+      }, 700);
+    } else {
+      cdEl.textContent = count;
+      sfxTimerUrgent();
+    }
+  }, 900);
+  sfxTimerTick();
+}
+
+// ============================================================
+// HOST: TRAINING PHASE
+// ============================================================
+function startTrainingPhase() {
+  on.trainingBothDone = false;
+  on.firstFinished = null;
+  on.phase = "training";
+
+  var lvl = on.level;
+  on.me.trainQ  = generateMPTrainQ2(lvl);
+  on.opp.trainQ = generateMPTrainQ2(lvl);
+  on.me.trainIdx = 0; on.opp.trainIdx = 0;
+  on.me.trainingDone = false; on.opp.trainingDone = false;
+  on.me.correctCount = 0; on.opp.correctCount = 0;
+  on.me.stage = 0; on.opp.stage = 0;
+  on.me.powerBar = 0; on.opp.powerBar = 0;
+  on.me.streak = 0; on.opp.streak = 0;
+  on.me.wrongAnswers = []; on.opp.wrongAnswers = [];
+  on.me.shieldCharges = 0; on.opp.shieldCharges = 0;
+  on.me.answerLocked = false; on.opp.answerLocked = false;
+
+  hostSend({ type: "start-training", level: lvl, difficulty: on.difficulty });
+
+  showHUDPanels("training");
+  document.getElementById("my-train-count").style.display = "block";
+  var ctm = document.getElementById("training-center-msg");
+  ctm.style.display = "block";
+  document.getElementById("training-center-text").textContent = "TRAINING";
+
+  showTrainingQuestion("me");
+  startHostStateSync();
+}
+
+// ============================================================
+// CLIENT: TRAINING PHASE
+// ============================================================
+function startTrainingPhaseClient() {
+  on.phase = "training";
+  if (!on.me) on.me = makeSide(on.clientRole);
+  if (!on.opp) on.opp = makeSide(on.hostRole);
+
+  showHUDPanels("training");
+  document.getElementById("my-train-count").style.display = "block";
+  var ctm = document.getElementById("training-center-msg");
+  ctm.style.display = "block";
+  document.getElementById("training-center-text").textContent = "TRAINING";
+}
+
+function generateMPTrainQ2(level) {
+  var N = LEVEL_CONFIG[level].table;
+  var mults = [1,2,3,4,5,6,7,8,9,10];
+  shuffleArray(mults);
+  var q = [];
+  for (var i=0; i<6; i++) q.push({ a:N, b:mults[i] });
+  return q;
+}
+
+function showTrainingQuestion(who) {
+  var s = (who === "me") ? on.me : on.opp;
+  if (s.trainingDone) return;
+  if (s.trainIdx >= s.trainQ.length) { finishTrainingSide(who, false); return; }
+  s.currentQ = s.trainQ[s.trainIdx];
+  s.answerLocked = false;
+
+  if (who === "me") {
+    var choices = generateDistractors(s.currentQ.a, s.currentQ.b, on.level);
+    showMyQuestion(s.currentQ, "training");
+    updateMyTrainCount(s.trainIdx, s.trainQ.length);
+  }
+}
+
+function handleTrainingAnswerForSide(who, valStr) {
+  var s = (who === "me") ? on.me : on.opp;
+  if (!s || s.trainingDone || s.answerLocked) return;
+  if (!s.currentQ) return;
+  s.answerLocked = true;
+
+  var val = parseInt(valStr);
+  var correct = s.currentQ.a * s.currentQ.b;
+  var isCorrect = (val === correct);
+
+  if (who === "me") {
+    for (var i=0; i<4; i++) {
+      var btn = document.getElementById("my-btn" + i);
+      if (parseInt(btn.dataset.val) === val) btn.classList.add(isCorrect ? "correct" : "wrong");
+      if (!isCorrect && parseInt(btn.dataset.val) === correct) btn.classList.add("correct");
+    }
+  }
+
+  if (isCorrect) {
+    sfxCorrect();
+    s.correctCount++;
+    s.streak++;
+    s.powerBar = Math.min(100, s.powerBar + 100/6);
+    var newStage = 0;
+    for (var t2=0; t2<MP_STAGE_THRESH.length; t2++) {
+      if (s.correctCount >= MP_STAGE_THRESH[t2]) newStage = t2+1;
+    }
+    if (newStage > s.stage) {
+      s.stage = newStage;
+      sfxStreak();
+      var lbl = (s.role === "devil" ? DEVIL_STAGE_NAMES : STAGE_NAMES)[s.stage] || "";
+      spawnFloatText(lbl + "!", who==="me" ? 100 : 700, 200, s.role==="devil"?"#ff6666":"#ffd700", 18);
+    }
+  } else {
+    sfxWrong();
+    s.streak = 0;
+    s.wrongAnswers.push({ a: s.currentQ.a, b: s.currentQ.b });
+    s.powerBar = Math.max(0, s.powerBar - 5);
+  }
+  if (who === "me") updateMyHUD();
+
+  s.trainIdx++;
+  if (s.feedbackTimeout) clearTimeout(s.feedbackTimeout);
+  s.feedbackTimeout = setTimeout(function() {
+    if (s.trainingDone) return;
+    if (s.trainIdx >= s.trainQ.length || s.powerBar >= 100) {
+      finishTrainingSide(who, false);
+    } else {
+      showTrainingQuestion(who);
+    }
+  }, 500);
+}
+
+function finishTrainingSide(who, forced) {
+  var s = (who === "me") ? on.me : on.opp;
+  if (s.trainingDone) return;
+  s.trainingDone = true;
+
+  if (who === "me") {
+    clearMyQuestion();
+    document.getElementById("my-train-count").style.display = "none";
+    document.getElementById("my-ready-banner").style.display = "block";
+  }
+
+  if (!on.firstFinished) {
+    on.firstFinished = who;
+    s.shieldCharges += 1;
+    sfxPowerUp();
+    spawnFloatText("+1 SHIELD!", who==="me" ? 100 : 700, 150, "#88aaff", 16);
+    if (who === "me") updateMyHUD();
+  }
+
+  var other = (who === "me") ? "opp" : "me";
+  var otherS = (other === "me") ? on.me : on.opp;
+  if (otherS.trainingDone || forced) {
+    if (!otherS.trainingDone) {
+      otherS.trainingDone = true;
+      if (other === "me") {
+        clearMyQuestion();
+        document.getElementById("my-train-count").style.display = "none";
+      }
+    }
+    if (on.trainingInterval) { clearInterval(on.trainingInterval); on.trainingInterval = null; }
+    document.getElementById("training-center-text").textContent = "READY FOR BATTLE!";
+    sfxTransition();
+    setTimeout(function() {
+      if (net.isHost) startBattlePhase();
+    }, 1500);
+  }
+}
+
+// Training timer (30s max)
+function startTrainingTimer() {
+  on.trainingTimer = 30;
+  if (on.trainingInterval) clearInterval(on.trainingInterval);
+  on.trainingInterval = setInterval(function() {
+    on.trainingTimer--;
+    if (on.trainingTimer <= 3 && on.trainingTimer > 0) sfxTimerUrgent();
+    if (on.trainingTimer <= 0) {
+      clearInterval(on.trainingInterval); on.trainingInterval = null;
+      if (!on.me.trainingDone)  finishTrainingSide("me",  true);
+      if (!on.opp.trainingDone) finishTrainingSide("opp", true);
+    }
+  }, 1000);
+}
+
+// ============================================================
+// HOST: BATTLE PHASE
+// ============================================================
+function startBattlePhase() {
+  on.phase = "battle";
+  on.battleActive = true;
+
+  on.me.battleQ = null; on.opp.battleQ = null;
+  on.me.battleAnswerLocked = false; on.opp.battleAnswerLocked = false;
+  on.me.awaitingPower = false; on.opp.awaitingPower = false;
+  on.me._battlePool = generateBattlePool2(on.level, on.me.wrongAnswers);
+  on.opp._battlePool = generateBattlePool2(on.level, on.opp.wrongAnswers);
+
+  hostSend({ type: "start-battle" });
+
+  showHUDPanels("battle");
+  document.getElementById("training-center-msg").style.display = "none";
+  document.getElementById("my-ready-banner").style.display = "none";
+  document.getElementById("hud-center-top").style.display = "flex";
+  updateBCH2();
+  updateMyHUD();
+  updateOppHUD();
+  document.getElementById("power-overlay-me").style.display = "none";
+
+  buildMyPowerButtons();
+  sfxBattleStart();
+
+  scheduleNextQ("me", 0);
+  scheduleNextQ("opp", 1500);
+}
+
+// ============================================================
+// CLIENT: BATTLE PHASE
+// ============================================================
+function startBattlePhaseClient() {
+  on.phase = "battle";
+  on.battleActive = true;
+
+  showHUDPanels("battle");
+  document.getElementById("training-center-msg").style.display = "none";
+  document.getElementById("my-ready-banner").style.display = "none";
+  document.getElementById("hud-center-top").style.display = "flex";
+  updateBCH2();
+  document.getElementById("power-overlay-me").style.display = "none";
+  buildMyPowerButtons();
+  sfxBattleStart();
+}
+
+function generateBattlePool2(level, wrongAnswers) {
+  var N = LEVEL_CONFIG[level].table;
+  var pool = [];
+  wrongAnswers.forEach(function(w) { pool.push({ a:w.a, b:w.b }); });
+  while (pool.length < 20) pool.push({ a:N, b: Math.floor(Math.random()*10)+1 });
+  shuffleArray(pool);
+  return pool;
+}
+
+function nextFromPool2(pool, level) {
+  if (pool.length === 0) {
+    var N = LEVEL_CONFIG[level].table;
+    for (var b=1; b<=10; b++) pool.push({ a:N, b:b });
+    shuffleArray(pool);
+  }
+  return pool.shift();
+}
+
+function scheduleNextQ(who, delay) {
+  if (!on.battleActive) return;
+  var s = (who === "me") ? on.me : on.opp;
+  if (s._qTimer) clearTimeout(s._qTimer);
+  s._qTimer = setTimeout(function() {
+    if (!on.battleActive) return;
+    askBattleQ(who);
+  }, delay || 0);
+}
+
+function askBattleQ(who) {
+  if (!on.battleActive) return;
+  var s = (who === "me") ? on.me : on.opp;
+  if (s.awaitingPower) return;
+
+  var q = nextFromPool2(s._battlePool, on.level);
+  q.options = generateDistractors(q.a, q.b, on.level);
+  s.battleQ = q;
+  s.battleAnswerLocked = false;
+
+  if (who === "me") {
+    showMyQuestion(q, "battle");
+  } else {
+    // Notify client via next state snapshot (state is sent every 100ms anyway)
+  }
+
+  if (s._qExpireTimer) clearTimeout(s._qExpireTimer);
+  s._qExpireTimer = setTimeout(function() {
+    if (!on.battleActive || s.battleAnswerLocked || !s.battleQ) return;
+    s.battleQ = null;
+    if (who === "me") clearMyQuestion();
+    sfxWrong();
+    var target = (who === "me") ? "opp" : "me";
+    applyDamage2(target, 2, who);
+    scheduleNextQ(who, 3000);
+  }, 8000);
+}
+
+function handleBattleAnswerForSide(who, valStr) {
+  var s = (who === "me") ? on.me : on.opp;
+  if (!s || !on.battleActive) return;
+  if (s.awaitingPower || s.battleAnswerLocked) return;
+  if (!s.battleQ) return;
+
+  s.battleAnswerLocked = true;
+  if (s._qExpireTimer) { clearTimeout(s._qExpireTimer); s._qExpireTimer = null; }
+
+  var val = parseInt(valStr);
+  var correct = s.battleQ.a * s.battleQ.b;
+  var isCorrect = (val === correct);
+
+  if (who === "me") {
+    for (var i=0; i<4; i++) {
+      var btn = document.getElementById("my-btn" + i);
+      if (parseInt(btn.dataset.val) === val) btn.classList.add(isCorrect ? "correct" : "wrong");
+      if (!isCorrect && parseInt(btn.dataset.val) === correct) btn.classList.add("correct");
+    }
+  }
+
+  if (isCorrect) {
+    sfxCorrect();
+    s.correctCount++;
+    var newStage = 0;
+    for (var t3=0; t3<MP_STAGE_THRESH.length; t3++) {
+      if (s.correctCount >= MP_STAGE_THRESH[t3]) newStage = t3+1;
+    }
+    if (newStage > s.stage) {
+      s.stage = Math.min(4, newStage);
+      sfxStreak();
+      var bl = (s.role === "devil" ? DEVIL_STAGE_NAMES : STAGE_NAMES)[s.stage] || "";
+      spawnFloatText(bl + "!", who==="me" ? 100 : 700, 200, s.role==="devil"?"#ff6666":"#ffd700", 18);
+    }
+    s.battleQ = null;
+    if (who === "me") {
+      if (s.battleFeedbackTimeout) clearTimeout(s.battleFeedbackTimeout);
+      s.battleFeedbackTimeout = setTimeout(function() {
+        clearMyQuestion();
+        showPowerSelectionMe();
+      }, 400);
+    } else {
+      // opp answered correctly — tell client via state snapshot (clientPowerSelect)
+      s.battleFeedbackTimeout = setTimeout(function() {
+        s.awaitingPower = true;
+        hostSendEvent({ type: "sfx", name: "sfxPowerUp" });
+      }, 400);
+    }
+  } else {
+    sfxWrong();
+    s.battleQ = null;
+    var opp2 = (who === "me") ? "opp" : "me";
+    applyDamage2(opp2, 2, who);
+    if (who === "me") {
+      if (s.battleFeedbackTimeout) clearTimeout(s.battleFeedbackTimeout);
+      s.battleFeedbackTimeout = setTimeout(function() {
+        clearMyQuestion();
+        scheduleNextQ(who, 3000);
+      }, 500);
+    } else {
+      s.battleFeedbackTimeout = setTimeout(function() {
+        scheduleNextQ(who, 3000);
+      }, 500);
+    }
+  }
+}
+
+// ============================================================
+// POWER SELECTION (HOST SIDE)
+// ============================================================
+function buildMyPowerButtons() {
+  var powers = (on.me && on.me.role === "angel") ? ANGEL_POWERS : DEVIL_POWERS;
+  var grid = document.getElementById("my-sp-grid");
+  grid.innerHTML = "";
+  powers.forEach(function(p, i) {
+    var btn = document.createElement("button");
+    btn.className = "mp-sp-btn";
+    btn.innerHTML = '<span class="mp-sp-icon">' + p.icon + '</span>' +
+      '<span class="mp-sp-info">' +
+        '<span class="mp-sp-name">' + p.name + '</span>' +
+        '<span class="mp-sp-key">' + p.keyLabel + '</span>' +
+        '<span class="mp-sp-desc">' + p.desc + '</span>' +
+      '</span>';
+    btn.addEventListener("click", function() {
+      unlockAudio();
+      selectPowerForSide("me", p.type);
+    });
+    grid.appendChild(btn);
+  });
+}
+
+function showPowerSelectionMe() {
+  on.me.awaitingPower = true;
+  clearMyQuestion();
+  sfxPowerUp();
+  document.getElementById("power-overlay-me").style.display = "flex";
+  on.me._powerAutoTimer = setTimeout(function() {
+    if (on.me.awaitingPower) {
+      var powers = (on.me.role === "angel") ? ANGEL_POWERS : DEVIL_POWERS;
+      selectPowerForSide("me", powers[0].type);
+    }
+  }, 6000);
+}
+
+function hidePowerSelectionMe() {
+  on.me.awaitingPower = false;
+  document.getElementById("power-overlay-me").style.display = "none";
+  if (on.me._powerAutoTimer) { clearTimeout(on.me._powerAutoTimer); on.me._powerAutoTimer = null; }
+}
+
+function selectPowerForSide(who, powerType) {
+  var s = (who === "me") ? on.me : on.opp;
+  if (!s.awaitingPower) return;
+  s.awaitingPower = false;
+
+  if (who === "me") {
+    if (s._powerAutoTimer) { clearTimeout(s._powerAutoTimer); s._powerAutoTimer = null; }
+    document.getElementById("power-overlay-me").style.display = "none";
+  }
+
+  s.powersUsed++;
+  var opp3 = (who === "me") ? "opp" : "me";
+  var myX  = (who === "me") ? CENTER_X2 + 30 : CENTER_X2 + CENTER_W2 - 80;
+  var myY  = OP_H * 0.4;
+  var oppX = (who === "me") ? CENTER_X2 + CENTER_W2 - 80 : CENTER_X2 + 30;
+  var oppY = OP_H * 0.38;
+  var pcol = s.role === "angel" ? "#ffd700" : "#ff6666";
+
+  sfxSuperPower();
+  spawnFloatText(powerType.toUpperCase(), who==="me" ? 100 : 700, 160, pcol, 15);
+  hostSendEvent({ type: "sfx", name: "sfxSuperPower" });
+
+  switch(powerType) {
+    case "fire":
+      applyDamage2(opp3, 5, who);
+      if (s.role === "angel") {
+        spawnDivineBarrage(myX, myY, oppX, oppY);
+      } else {
+        spawnDevilPowerFire_Online(who, myX, myY, oppX, oppY);
+      }
+      break;
+    case "lightning":
+      applyDamage2(opp3, 3, who);
+      s.hp = Math.min(s.hpMax, s.hp + 2);
+      if (who === "me") updateMyHUD(); else updateOppHUD();
+      if (s.role === "angel") {
+        spawnHolySlash(myX, myY, oppX, oppY);
+      } else {
+        // devil lightning at opponent
+        for (var lj=0; lj<4; lj++) {
+          (function(jj) {
+            setTimeout(function() {
+              addEffect("devilLightningBolt", { cx:oppX, cy:oppY }, 350);
+            }, jj*70);
+          })(lj);
+        }
+      }
+      break;
+    case "shield":
+      s.shieldCharges = 2;
+      if (who === "me") updateMyHUD(); else updateOppHUD();
+      if (s.role === "angel") {
+        triggerFlash("rgba(100,150,255,0.35)", 400);
+        addEffect("shieldDomeMaterialise", { cx: myX + 48, cy: myY + 32, r: 70 }, 800);
+      } else {
+        addEffect("devilShieldDome", { cx: myX + 48, cy: myY + 32, r: 70 }, 900);
+        triggerFlash("rgba(80,0,120,0.35)", 350);
+      }
+      break;
+    case "heal":
+      s.hp = Math.min(s.hpMax, s.hp + 4);
+      if (who === "me") updateMyHUD(); else updateOppHUD();
+      if (s.role === "angel") {
+        spawnParticleBurst(myX, myY, 20, "#00ff88", 4, 3);
+        addEffect("screenTint", { color:"#00ff88" }, 300);
+      } else {
+        // Blood potion — convergence
+        for (var bk=0; bk<30; bk++) {
+          var angle = (bk/30)*Math.PI*2;
+          var rb = 80 + Math.random()*40;
+          particles.push({
+            x: myX + Math.cos(angle)*rb, y: myY + Math.sin(angle)*rb,
+            vx: -Math.cos(angle)*2.5, vy: -Math.sin(angle)*2.5,
+            life:1, decay:0.02+Math.random()*0.02,
+            r:3+Math.random()*4, color:"#cc0022", alpha:0.9, glow:"#880011"
+          });
+        }
+        addEffect("bloodPulse", { cx:myX+48, cy:myY+32 }, 600);
+      }
+      break;
+  }
+
+  scheduleNextQ(who, 2000);
+}
+
+// Devil fire power (online version)
+function spawnDevilPowerFire_Online(who, myX, myY, oppX, oppY) {
+  addEffect("devilFireball", { sx: myX, sy: myY, ex: oppX, ey: oppY }, 600);
+  spawnParticleBurst(oppX, oppY, 30, "#cc2200", 8, 5);
+  triggerFlash("rgba(200,0,0,0.4)", 400);
+  addEffect("shockwave", { x:oppX, y:oppY, color:"#cc0000" }, 600);
+}
+
+// ============================================================
+// HOST: SHOOTING
+// ============================================================
+function handleShoot(who) {
+  if (!on.battleActive) return;
+  var s = (who === "me") ? on.me : on.opp;
+  if (!s) return;
+
+  var now = Date.now();
+  if (now - s.lastShotTime < 500) return;
+  s.lastShotTime = now;
+  s.shotsFired++;
+
+  var dmg = (s.stage >= 3) ? 2 : 1;
+  var opp4 = (who === "me") ? "opp" : "me";
+
+  if (s.role === "angel") sfxDivineStrike(); else sfxDevilAttack();
+  hostSendEvent({ type: "sfx", name: s.role === "angel" ? "sfxDivineStrike" : "sfxDevilAttack" });
+
+  // Spawn visual
+  var myX = (who === "me") ? CENTER_X2 + 30 : CENTER_X2 + CENTER_W2 - 80;
+  var myY = OP_H * 0.4;
+  var oppX = (who === "me") ? CENTER_X2 + CENTER_W2 - 80 : CENTER_X2 + 30;
+  var oppY = OP_H * 0.38;
+
+  spawnShootOnline(s.role, s.stage, myX, myY, oppX, oppY);
+
+  setTimeout(function() {
+    if (!on.battleActive) return;
+    s.shotsHit++;
+    applyDamage2(opp4, dmg, who);
+  }, 350);
+}
+
+function spawnShootOnline(role, stage, ax, ay, bx, by) {
+  if (role === "angel") {
+    switch(stage) {
+      case 0: spawnFeebleSpark(ax, ay, bx, by); break;
+      case 1: spawnLightBolt(ax, ay, bx, by); break;
+      case 2: spawnHolyArrow(ax, ay, bx, by); break;
+      case 3: spawnSacredLance(ax, ay, bx, by); break;
+      case 4: spawnDivineBarrage(ax, ay, bx, by); break;
+    }
+  } else {
+    spawnDevilShootOnline(ax, ay, bx, by, stage);
+  }
+}
+
+function spawnDevilShootOnline(ax, ay, bx, by, stage) {
+  switch(stage) {
+    case 0: spawnDarkSparkOnline(ax, ay, bx, by); break;
+    case 1: addEffect("darkBolt", { ax, ay, bx, by }, 220); break;
+    case 2: addEffect("shadowArrow", { ax, ay, bx, by }, 320); break;
+    case 3: addEffect("darkLance", { ax, ay, bx, by }, 270); break;
+    case 4: addEffect("infernoBarrage", { ax, ay, bx, by }, 450); break;
+  }
+}
+
+function spawnDarkSparkOnline(ax, ay, bx, by) {
+  var count = 5 + Math.floor(Math.random()*4);
+  for (var i=0; i<count; i++) {
+    var t5 = i/(count-1);
+    var wobble = (Math.random()-0.5)*18;
+    var nx = -(by-ay), ny = (bx-ax);
+    var len = Math.sqrt(nx*nx+ny*ny)||1;
+    particles.push({
+      x: ax+(bx-ax)*t5+(nx/len)*wobble,
+      y: ay+(by-ay)*t5+(ny/len)*wobble,
+      vx:(Math.random()-0.5)*0.6, vy:(Math.random()-0.5)*0.6,
+      life:0.55+Math.random()*0.2, decay:0.04+Math.random()*0.04,
+      r:1.5+Math.random()*1.5, color:"#7755aa", alpha:0.4+Math.random()*0.2, glow:null
+    });
+  }
+}
+
+// ============================================================
+// HOST: APPLY DAMAGE
+// ============================================================
+function applyDamage2(who, dmg, fromWho) {
+  var s = (who === "me") ? on.me : on.opp;
+  if (!s || !on.battleActive) return;
+
+  if (s.shieldCharges > 0) {
+    s.shieldCharges--;
+    if (who === "me") updateMyHUD(); else updateOppHUD();
+    sfxAttackHit();
+    hostSendEvent({ type: "sfx", name: "sfxAttackHit" });
+    spawnFloatText("BLOCKED!", who==="me" ? 100 : 700, 180, "#88aaff", 16);
+    hostSendEvent({ type: "floatText", text:"BLOCKED!", x: who==="me"?100:700, y:180, color:"#88aaff", size:16 });
+    return;
+  }
+
+  s.hp = Math.max(0, s.hp - dmg);
+  s.flash = 8;
+  if (who === "me") updateMyHUD(); else updateOppHUD();
+  sfxAttackHit();
+  hostSendEvent({ type: "sfx", name: "sfxAttackHit" });
+  triggerFlash("rgba(255,50,50,0.35)", 200);
+  hostSendEvent({ type: "flash", color:"rgba(255,50,50,0.35)", duration:200 });
+
+  var bx5 = who==="me" ? CENTER_X2+80 : CENTER_X2+CENTER_W2-80;
+  spawnParticleBurst(bx5, OP_H*0.4, 12, "#ff4444", 4, 3);
+  hostSendEvent({ type: "particle", burst: { x:bx5, y:OP_H*0.4, count:12, color:"#ff4444", speed:4, life:3 }});
+  spawnFloatText("-"+dmg, who==="me"?100:700, 200, "#ff4444", 18);
+  hostSendEvent({ type: "floatText", text:"-"+dmg, x:who==="me"?100:700, y:200, color:"#ff4444", size:18 });
+
+  if (s.hp <= 0) checkBattleEnd2();
+}
+
+function checkBattleEnd2() {
+  if (!on.battleActive) return;
+  var myDead  = on.me.hp  <= 0;
+  var oppDead = on.opp.hp <= 0;
+  if (!myDead && !oppDead) return;
+
+  on.battleActive = false;
+  stopBattleTimers2();
+
+  var winner;
+  if (myDead && oppDead) winner = "draw";
+  else if (myDead) winner = "opp";
+  else winner = "me";
+
+  if (winner === "draw") sfxTransition(); else sfxVictory();
+  hostSendEvent({ type: "sfx", name: winner === "draw" ? "sfxTransition" : "sfxVictory" });
+
+  setTimeout(function() {
+    showRoundEnd2(winner);
+  }, 1200);
+}
+
+function stopBattleTimers2() {
+  ["me","opp"].forEach(function(who) {
+    var s = (who === "me") ? on.me : on.opp;
+    if (!s) return;
+    if (s._qTimer) { clearTimeout(s._qTimer); s._qTimer = null; }
+    if (s._qExpireTimer) { clearTimeout(s._qExpireTimer); s._qExpireTimer = null; }
+    if (s._powerAutoTimer) { clearTimeout(s._powerAutoTimer); s._powerAutoTimer = null; }
+    if (s.feedbackTimeout) { clearTimeout(s.feedbackTimeout); s.feedbackTimeout = null; }
+    if (s.battleFeedbackTimeout) { clearTimeout(s.battleFeedbackTimeout); s.battleFeedbackTimeout = null; }
+  });
+  if (on.trainingInterval) { clearInterval(on.trainingInterval); on.trainingInterval = null; }
+  stopStateSync();
+}
+
+// ============================================================
+// HOST: ROUND END
+// ============================================================
+function showRoundEnd2(winner) {
+  hideBattleUI();
+
+  if (net.isHost) {
+    var isDraw = (winner === "draw");
+    if (winner === "me") on.scores[0]++;
+    else if (winner === "opp") on.scores[1]++;
+
+    hostSend({
+      type: "round-result",
+      winner: winner,
+      scores: on.scores,
+      isDraw,
+    });
+  }
+
+  var re = document.getElementById("round-end-screen");
+  re.style.display = "flex";
+
+  var isDraw2 = (winner === "draw");
+  var titleEl = document.getElementById("round-end-title");
+  if (isDraw2) {
+    titleEl.textContent = "DRAW!";
+    titleEl.style.color = "#ffd700";
+  } else if (winner === "me") {
+    titleEl.textContent = "YOU WIN!";
+    titleEl.style.color = "#aaddff";
+  } else {
+    titleEl.textContent = "OPPONENT WINS!";
+    titleEl.style.color = "#ff8888";
+  }
+
+  document.getElementById("round-end-score").textContent = on.scores[0] + " — " + on.scores[1];
+
+  var swapMsg = isDraw2
+    ? "Draw! Replaying this round."
+    : "Next round roles swap.";
+  document.getElementById("round-end-swap").textContent = swapMsg;
+  on._lastRoundWasDraw = isDraw2;
+
+  var autoCount = 5;
+  document.getElementById("round-end-auto").textContent = "Continuing in " + autoCount + "s...";
+  if (on.roundEndTimer) clearInterval(on.roundEndTimer);
+  var autoTimer = setInterval(function() {
+    autoCount--;
+    document.getElementById("round-end-auto").textContent = "Continuing in " + autoCount + "s...";
+    if (autoCount <= 0) {
+      clearInterval(autoTimer);
+      if (net.isHost) startNextRound2();
+    }
+  }, 1000);
+  on.roundEndTimer = autoTimer;
+}
+
+function startNextRound2() {
+  if (on.roundEndTimer) { clearInterval(on.roundEndTimer); on.roundEndTimer = null; }
+  document.getElementById("round-end-screen").style.display = "none";
+
+  var p1 = on.scores[0], p2 = on.scores[1];
+  if (p1 >= 2) { showMatchEnd2("me"); return; }
+  if (p2 >= 2) { showMatchEnd2("opp"); return; }
+  if (on.round >= on.maxRounds && !on.suddenDeath) {
+    if (p1 > p2) { showMatchEnd2("me"); return; }
+    else if (p2 > p1) { showMatchEnd2("opp"); return; }
+    else { on.suddenDeath = true; on.round = 4; startPreRound(); return; }
+  }
+  if (on.suddenDeath) {
+    if (p1 > p2) { showMatchEnd2("me"); return; }
+    else if (p2 > p1) { showMatchEnd2("opp"); return; }
+    startPreRound(); return;
+  }
+
+  if (!on._lastRoundWasDraw) on.round++;
+  on._lastRoundWasDraw = false;
+  startPreRound();
+}
+
+function showMatchEnd2(winner) {
+  hideBattleUI();
+  document.getElementById("round-end-screen").style.display = "none";
+
+  if (net.isHost) {
+    hostSend({ type: "match-result", winner, scores: on.scores });
+  }
+
+  var me = document.getElementById("match-end-screen");
+  me.style.display = "flex";
+
+  document.getElementById("match-end-title").textContent =
+    winner === "me" ? "YOU ARE THE CHAMPION!" : "OPPONENT WINS!";
+  document.getElementById("match-end-score").textContent = on.scores[0] + " — " + on.scores[1];
+
+  var myS = on.me || {shotsFired:0, shotsHit:0, powersUsed:0};
+  var oppS = on.opp || {shotsFired:0, shotsHit:0, powersUsed:0};
+  document.getElementById("match-end-stats").textContent =
+    "You — Shots: " + myS.shotsHit + "/" + myS.shotsFired + " | Powers: " + myS.powersUsed + "\n" +
+    "Opp — Shots: " + oppS.shotsHit + "/" + oppS.shotsFired + " | Powers: " + oppS.powersUsed;
+
+  sfxVictory();
+}
+
+// ============================================================
+// CLIENT: ROUND/MATCH RESULTS
+// ============================================================
+function handleRoundResultClient(data) {
+  var winner;
+  if (data.winner === "draw") winner = "draw";
+  else if (data.winner === "host") winner = "opp";  // from client's perspective
+  else winner = "me"; // client wins
+
+  // Map host's "me"/"opp" perspective — host says "me" = host won = client loses
+  if (data.winner === "me") winner = "opp";
+  else if (data.winner === "opp") winner = "me";
+
+  on.scores = data.scores;
+  on.battleActive = false;
+  stopBattleTimers2();
+  hideBattleUI();
+  showRoundEndClient(winner, data.isDraw);
+}
+
+function showRoundEndClient(winner, isDraw) {
+  var re = document.getElementById("round-end-screen");
+  re.style.display = "flex";
+
+  var titleEl = document.getElementById("round-end-title");
+  if (isDraw) {
+    titleEl.textContent = "DRAW!"; titleEl.style.color = "#ffd700";
+  } else if (winner === "me") {
+    titleEl.textContent = "YOU WIN!"; titleEl.style.color = "#aaddff";
+  } else {
+    titleEl.textContent = "OPPONENT WINS!"; titleEl.style.color = "#ff8888";
+  }
+  document.getElementById("round-end-score").textContent = on.scores[0] + " — " + on.scores[1];
+  document.getElementById("round-end-swap").textContent = isDraw ? "Draw! Replaying this round." : "Next round roles swap.";
+  document.getElementById("round-end-auto").textContent = "Waiting for host...";
+  on._lastRoundWasDraw = isDraw;
+}
+
+function handleMatchResultClient(data) {
+  // data.winner is from host perspective: "me" = host won, "opp" = client won
+  var winner = data.winner === "opp" ? "me" : "opp";
+  on.scores = data.scores;
+  on.battleActive = false;
+  stopBattleTimers2();
+  hideBattleUI();
+  document.getElementById("round-end-screen").style.display = "none";
+
+  var me = document.getElementById("match-end-screen");
+  me.style.display = "flex";
+  document.getElementById("match-end-title").textContent =
+    winner === "me" ? "YOU ARE THE CHAMPION!" : "OPPONENT WINS!";
+  document.getElementById("match-end-score").textContent = on.scores[0] + " — " + on.scores[1];
+  sfxVictory();
+}
+
+// ============================================================
+// HOST STATE SYNC — send snapshots every 100ms
+// ============================================================
+function startHostStateSync() {
+  stopStateSync();
+  net.stateInterval = setInterval(function() {
+    if (!net.conn || !net.connected) return;
+    var snap = buildStateSnapshot();
+    hostSend(snap);
+  }, 100);
+}
+
+function stopStateSync() {
+  if (net.stateInterval) { clearInterval(net.stateInterval); net.stateInterval = null; }
+}
+
+function buildStateSnapshot() {
+  var me = on.me || {};
+  var opp = on.opp || {};
+
+  var snap = {
+    type: "state",
+    phase: on.phase,
+    round: on.round,
+    scores: on.scores,
+    host: {
+      role: me.role, hp: me.hp, hpMax: me.hpMax, stage: me.stage,
+      powerBar: me.powerBar, shieldCharges: me.shieldCharges, flash: me.flash||0,
+    },
+    client: {
+      role: opp.role, hp: opp.hp, hpMax: opp.hpMax, stage: opp.stage,
+      powerBar: opp.powerBar, shieldCharges: opp.shieldCharges, flash: opp.flash||0,
+    },
+    clientPowerSelect: opp.awaitingPower || false,
+    clientAnswerLocked: opp.battleAnswerLocked || false,
+    clientTrainingDone: opp.trainingDone || false,
+  };
+
+  // Include client's current question (opp's battleQ) if applicable
+  if (on.phase === "battle" && opp.battleQ && !opp.battleAnswerLocked) {
+    snap.clientQuestion = opp.battleQ;
+  } else {
+    snap.clientQuestion = null;
+  }
+
+  // Training question for client
+  if (on.phase === "training" && !opp.trainingDone && !opp.answerLocked && opp.currentQ) {
+    var choices = generateDistractors(opp.currentQ.a, opp.currentQ.b, on.level);
+    snap.clientTraining = {
+      question: { a: opp.currentQ.a, b: opp.currentQ.b, options: choices },
+      idx: opp.trainIdx,
+      total: opp.trainQ ? opp.trainQ.length : 6,
+      stage: opp.stage, powerBar: opp.powerBar,
+    };
+  }
+
+  return snap;
+}
+
+// ============================================================
+// SEND HELPERS
+// ============================================================
+function hostSend(data) {
+  if (net.isHost && net.conn && net.connected) {
+    try { net.conn.send(data); } catch(e) {}
+  }
+}
+
+function hostSendEvent(data) {
+  // Send immediately (not batched in state)
+  hostSend(data);
+}
+
+function clientSend(data) {
+  if (!net.isHost && net.conn && net.connected) {
+    try { net.conn.send(data); } catch(e) {}
+  }
+}
+
+// ============================================================
+// DISCONNECTION HANDLING
+// ============================================================
+function handleDisconnect() {
+  if (net.disconnected) return;
+  net.disconnected = true;
+  net.connected = false;
+
+  if (on.phase === "lobby") { showLobby(); return; }
+
+  showReconnect();
+  var count = 10;
+  document.getElementById("reconnect-count").textContent = "Reconnecting... " + count + "s";
+  var rTimer = setInterval(function() {
+    count--;
+    if (!net.disconnected) { clearInterval(rTimer); hideReconnect(); return; }
+    document.getElementById("reconnect-count").textContent = "Reconnecting... " + count + "s";
+    if (count <= 0) {
+      clearInterval(rTimer);
+      // Opponent disconnected — local player wins
+      on.battleActive = false;
+      stopBattleTimers2();
+      hideReconnect();
+      hideBattleUI();
+      document.getElementById("match-end-title").textContent = "OPPONENT DISCONNECTED — YOU WIN!";
+      document.getElementById("match-end-score").textContent = "";
+      document.getElementById("match-end-stats").textContent = "";
+      document.getElementById("match-end-screen").style.display = "flex";
+    }
+  }, 1000);
+  net.reconnectTimer = rTimer;
+}
+
+function showReconnect() {
+  document.getElementById("reconnect-overlay").style.display = "flex";
+}
+function hideReconnect() {
+  document.getElementById("reconnect-overlay").style.display = "none";
+  net.disconnected = false;
+}
+
+// Monitor data channel freshness (2s no data = pause)
+function checkHeartbeat() {
+  if (on.phase === "lobby" || on.phase === "waiting") return;
+  if (!net.connected) return;
+  var now = Date.now();
+  if (now - net.lastDataTime > 2000 && !net.disconnected) {
+    handleDisconnect();
+  }
+}
+
+// ============================================================
+// PEER CLEANUP
+// ============================================================
+function destroyPeer() {
+  stopBattleTimers2();
+  stopStateSync();
+  if (net.conn) { try { net.conn.close(); } catch(e) {} net.conn = null; }
+  if (net.peer) { try { net.peer.destroy(); } catch(e) {} net.peer = null; }
+  net.connected = false;
+  net.disconnected = false;
+  on.phase = "lobby";
+  on.battleActive = false;
+}
+
+// ============================================================
+// HUD HELPERS
+// ============================================================
+function showLobby() {
+  hideBattleUI();
+  document.getElementById("pre-round-screen").style.display = "none";
+  document.getElementById("round-end-screen").style.display = "none";
+  document.getElementById("match-end-screen").style.display = "none";
+  document.getElementById("waiting-screen").style.display = "none";
+  document.getElementById("reconnect-overlay").style.display = "none";
+  document.getElementById("training-center-msg").style.display = "none";
+  document.getElementById("hud-center-top").style.display = "none";
+  document.getElementById("lobby-bg-overlay").style.display = "block";
+  document.getElementById("lobby-screen").style.display = "flex";
+  on.phase = "lobby";
+}
+
+function hideBattleUI() {
+  document.getElementById("hud-left-panel").style.display = "none";
+  document.getElementById("hud-right-panel").style.display = "none";
+  document.getElementById("power-overlay-me").style.display = "none";
+  document.getElementById("hud-center-top").style.display = "none";
+  document.getElementById("training-center-msg").style.display = "none";
+  document.getElementById("my-ready-banner").style.display = "none";
+}
+
+function showHUDPanels(mode) {
+  document.getElementById("lobby-bg-overlay").style.display = "none";
+  document.getElementById("lobby-screen").style.display = "none";
+  document.getElementById("hud-left-panel").style.display = "flex";
+  document.getElementById("hud-right-panel").style.display = "flex";
+  if (mode === "battle") {
+    document.getElementById("my-train-count").style.display = "none";
+  }
+}
+
+function showWaiting(code) {
+  document.getElementById("lobby-screen").style.display = "none";
+  document.getElementById("waiting-code-big").textContent = code;
+  document.getElementById("waiting-msg").textContent = "Waiting for opponent...";
+  document.getElementById("waiting-url").textContent = JOIN_URL_BASE + code;
+  document.getElementById("waiting-screen").style.display = "flex";
+}
+
+function setCreateStatus(msg, cls) {
+  var el = document.getElementById("create-status");
+  el.textContent = msg;
+  el.className = "lobby-status" + (cls ? " " + cls : "");
+}
+function setJoinStatus(msg, cls) {
+  var el = document.getElementById("join-status");
+  el.textContent = msg;
+  el.className = "lobby-status" + (cls ? " " + cls : "");
+}
+
+function updateMyHUD() {
+  var s = on.me;
+  if (!s) return;
+  var isAngel = (s.role === "angel");
+  var stageNames = isAngel ? STAGE_NAMES : DEVIL_STAGE_NAMES;
+  var stageColors = isAngel
+    ? ["#888888","#aaaaff","#88ccff","#ffd700","#ffaa00"]
+    : ["#aa5599","#cc66ff","#5599aa","#cc4422","#ff2244"];
+
+  document.getElementById("my-stage-name").textContent = stageNames[s.stage] || stageNames[0];
+  document.getElementById("my-stage-name").style.color = stageColors[s.stage] || "#888";
+
+  var hpPct = Math.max(0, s.hp / s.hpMax * 100);
+  document.getElementById("my-hp-fill").style.width = hpPct + "%";
+  document.getElementById("my-hp-fill").style.background = hpPct > 50
+    ? (isAngel ? "linear-gradient(90deg,#00cc44,#44ff88)" : "linear-gradient(90deg,#cc2222,#ff4444)")
+    : (hpPct > 25 ? "linear-gradient(90deg,#cc8800,#ffcc00)" : "linear-gradient(90deg,#cc2200,#ff4400)");
+  document.getElementById("my-hp-cur").textContent = s.hp;
+  document.getElementById("my-hp-max").textContent = s.hpMax;
+
+  var pwFill = document.getElementById("my-power-fill");
+  pwFill.style.width = Math.min(100, s.powerBar) + "%";
+  if (isAngel) {
+    pwFill.style.background = "linear-gradient(90deg,#ff8800,#ffdd00,#ffffff)";
+  } else {
+    pwFill.style.background = "linear-gradient(90deg,#440066,#8800cc,#ff00ff)";
+  }
+
+  var shEl = document.getElementById("my-shield-row");
+  shEl.textContent = s.shieldCharges > 0 ? "Shield: " + s.shieldCharges : "";
+
+  document.getElementById("my-player-name").textContent = "YOU — " + (isAngel ? "ANGEL" : "DEVIL");
+  document.getElementById("my-player-name").style.color = isAngel ? "#aaddff" : "#ff8888";
+}
+
+function updateOppHUD() {
+  var s = on.opp;
+  if (!s) return;
+  var isAngel = (s.role === "angel");
+  var stageNames = isAngel ? STAGE_NAMES : DEVIL_STAGE_NAMES;
+  var stageColors = isAngel
+    ? ["#888888","#aaaaff","#88ccff","#ffd700","#ffaa00"]
+    : ["#aa5599","#cc66ff","#5599aa","#cc4422","#ff2244"];
+
+  document.getElementById("opp-stage-name").textContent = stageNames[s.stage] || stageNames[0];
+  document.getElementById("opp-stage-name").style.color = stageColors[s.stage] || "#888";
+
+  var hpPct = Math.max(0, s.hp / s.hpMax * 100);
+  document.getElementById("opp-hp-fill").style.width = hpPct + "%";
+  document.getElementById("opp-hp-fill").style.background = hpPct > 50
+    ? (isAngel ? "linear-gradient(90deg,#00cc44,#44ff88)" : "linear-gradient(90deg,#cc2222,#ff4444)")
+    : (hpPct > 25 ? "linear-gradient(90deg,#cc8800,#ffcc00)" : "linear-gradient(90deg,#cc2200,#ff4400)");
+  document.getElementById("opp-hp-cur").textContent = s.hp;
+  document.getElementById("opp-hp-max").textContent = s.hpMax;
+
+  var oppFill = document.getElementById("opp-power-fill");
+  oppFill.style.width = Math.min(100, s.powerBar) + "%";
+
+  var shEl2 = document.getElementById("opp-shield-row");
+  shEl2.textContent = s.shieldCharges > 0 ? "Shield: " + s.shieldCharges : "";
+
+  document.getElementById("opp-player-name").textContent = "OPP — " + (isAngel ? "ANGEL" : "DEVIL");
+  document.getElementById("opp-player-name").style.color = isAngel ? "#aaddff" : "#ff8888";
+}
+
+function updateBCH2() {
+  document.getElementById("bch-round").textContent = on.suddenDeath ? "SD" : (on.round + "/" + on.maxRounds);
+  document.getElementById("bch-score").textContent = on.scores[0] + " — " + on.scores[1];
+}
+
+function showMyQuestion(q, mode) {
+  document.getElementById("my-q-text").textContent = q.a + " × " + q.b + " = ?";
+  var opts = q.options || generateDistractors(q.a, q.b, on.level);
+  for (var i=0; i<4; i++) {
+    var btn = document.getElementById("my-btn" + i);
+    btn.textContent = "[" + (i+1) + "] " + opts[i];
+    btn.dataset.val = opts[i];
+    btn.dataset.mode = mode;
+    btn.className = "mp-ans-btn";
+  }
+}
+
+function clearMyQuestion() {
+  document.getElementById("my-q-text").textContent = "";
+  for (var i=0; i<4; i++) {
+    var btn = document.getElementById("my-btn" + i);
+    btn.textContent = "";
+    btn.dataset.val = "";
+    btn.className = "mp-ans-btn idle";
+  }
+}
+
+function updateMyTrainCount(idx, total) {
+  var el = document.getElementById("my-train-count");
+  if (el) { el.style.display = "block"; el.textContent = idx + " / " + total; }
+}
+
+// ============================================================
+// SFX BY NAME (for client to play locally)
+// ============================================================
+function playSfxByName(name) {
+  switch(name) {
+    case "sfxCorrect":    sfxCorrect();    break;
+    case "sfxWrong":      sfxWrong();      break;
+    case "sfxStreak":     sfxStreak();     break;
+    case "sfxPowerUp":    sfxPowerUp();    break;
+    case "sfxAttackHit":  sfxAttackHit();  break;
+    case "sfxDivineStrike": sfxDivineStrike(); break;
+    case "sfxDevilAttack":  sfxDevilAttack();  break;
+    case "sfxSuperPower": sfxSuperPower(); break;
+    case "sfxVictory":    sfxVictory();    break;
+    case "sfxDefeat":     sfxDefeat();     break;
+    case "sfxTransition": sfxTransition(); break;
+    case "sfxBattleStart": sfxBattleStart(); break;
+    case "sfxTimerUrgent": sfxTimerUrgent(); break;
+  }
+}
+
+// ============================================================
+// EFFECT EVENTS (client applies locally)
+// ============================================================
+function applyEffectEvent(ev) {
+  switch(ev.name) {
+    case "lightBeam": addEffect("lightBeam", ev.params, 600); break;
+    case "divineBarrage": addEffect("divineBarrage", ev.params, 450); break;
+    case "holySlash": addEffect("holySlash", ev.params, 400); break;
+    case "shockwave": addEffect("shockwave", ev.params, 700); break;
+    case "screenTint": addEffect("screenTint", ev.params, 300); break;
+  }
+}
+
+// ============================================================
+// RENDERING
+// ============================================================
+// Note: angelFrame, bossFrame, angelBobOffset, bossBobOffset are
+// declared in assets.js. updateAngelAnim() and updateBossAnim()
+// are also from assets.js and update those globals.
+
+function updateAnims() {
+  updateAngelAnim();
+  updateBossAnim();
+}
+
+// Custom effect renderer for devil-specific effects
+function renderCustomEffectsOnline() {
+  var now2 = Date.now();
+  for (var ei = activeEffects.length-1; ei>=0; ei--) {
+    var ef = activeEffects[ei];
+    var CUSTOM_TYPES = {
+      "darkBolt":1,"shadowArrow":1,"darkLance":1,"infernoBarrage":1,
+      "devilLightningBolt":1,"devilShieldDome":1,"bloodPulse":1,"darkLightning":1
+    };
+    if (!CUSTOM_TYPES[ef.type]) continue;
+
+    var age2 = now2 - ef.start;
+    var t6 = age2 / ef.duration;
+    if (t6 >= 1) { activeEffects.splice(ei,1); continue; }
+    var p3 = ef.params;
+
+    ctx.save();
+    switch(ef.type) {
+      case "darkBolt":
+        ctx.strokeStyle="#8800ff"; ctx.lineWidth=3+2*(1-t6);
+        ctx.shadowColor="#8800ff"; ctx.shadowBlur=12;
+        ctx.globalAlpha=1-t6;
+        ctx.beginPath(); ctx.moveTo(p3.ax,p3.ay); ctx.lineTo(p3.bx,p3.by); ctx.stroke();
+        break;
+      case "shadowArrow": {
+        var ex3=p3.ax+(p3.bx-p3.ax)*Math.min(1,t6*1.4), ey3=p3.ay+(p3.by-p3.ay)*Math.min(1,t6*1.4);
+        ctx.strokeStyle="#00aaaa"; ctx.lineWidth=4+2*(1-t6);
+        ctx.shadowColor="#00aaaa"; ctx.shadowBlur=14;
+        ctx.globalAlpha=1-t6*0.5;
+        ctx.beginPath(); ctx.moveTo(p3.ax,p3.ay); ctx.lineTo(ex3,ey3); ctx.stroke();
+        break;
+      }
+      case "darkLance":
+        ctx.globalAlpha=1-t6;
+        ctx.strokeStyle="#cc2200"; ctx.lineWidth=8*(1-t6)+2;
+        ctx.shadowColor="#880000"; ctx.shadowBlur=20;
+        ctx.beginPath(); ctx.moveTo(p3.ax,p3.ay); ctx.lineTo(p3.bx,p3.by); ctx.stroke();
+        ctx.strokeStyle="#ff4400"; ctx.lineWidth=3*(1-t6);
+        ctx.beginPath(); ctx.moveTo(p3.ax,p3.ay); ctx.lineTo(p3.bx,p3.by); ctx.stroke();
+        break;
+      case "infernoBarrage": {
+        var bw6=16+8*(1-t6);
+        ctx.globalAlpha=1-t6*0.7;
+        var grad6=ctx.createLinearGradient(p3.ax,p3.ay,p3.bx,p3.by);
+        grad6.addColorStop(0,"rgba(100,0,0,0.9)"); grad6.addColorStop(0.5,"rgba(200,30,0,0.95)"); grad6.addColorStop(1,"rgba(255,80,0,0.8)");
+        ctx.strokeStyle=grad6; ctx.lineWidth=bw6;
+        ctx.shadowColor="#cc2200"; ctx.shadowBlur=30;
+        ctx.beginPath(); ctx.moveTo(p3.ax,p3.ay); ctx.lineTo(p3.bx,p3.by); ctx.stroke();
+        break;
+      }
+      case "devilLightningBolt":
+        ctx.globalAlpha=1-t6;
+        ctx.strokeStyle="#aa00ff"; ctx.lineWidth=2+2*(1-t6);
+        ctx.shadowColor="#8800ff"; ctx.shadowBlur=12;
+        ctx.beginPath();
+        var xl=p3.cx, yl=p3.cy+80; ctx.moveTo(xl,yl);
+        for (var sg6=0; sg6<5; sg6++) { xl+=(Math.random()-0.5)*30; yl-=15+Math.random()*10; ctx.lineTo(xl,yl); }
+        ctx.stroke();
+        break;
+      case "devilShieldDome": {
+        var ph6=t6<0.2?t6/0.2:(t6<0.7?1:1-(t6-0.7)/0.3);
+        ctx.globalAlpha=0.5*ph6;
+        var g6=ctx.createRadialGradient(p3.cx,p3.cy,10,p3.cx,p3.cy,p3.r);
+        g6.addColorStop(0,"rgba(100,0,180,0.1)"); g6.addColorStop(0.7,"rgba(80,0,140,0.3)"); g6.addColorStop(1,"rgba(60,0,100,0.6)");
+        ctx.fillStyle=g6;
+        ctx.beginPath(); ctx.arc(p3.cx,p3.cy,p3.r*ph6,0,Math.PI*2); ctx.fill();
+        ctx.strokeStyle="#8800ff"; ctx.lineWidth=2; ctx.globalAlpha=0.7*ph6;
+        ctx.shadowColor="#8800ff"; ctx.shadowBlur=15;
+        ctx.beginPath(); ctx.arc(p3.cx,p3.cy,p3.r*ph6,0,Math.PI*2); ctx.stroke();
+        break;
+      }
+      case "bloodPulse":
+        ctx.globalAlpha=(1-t6)*0.6;
+        ctx.strokeStyle="#cc0022"; ctx.lineWidth=4*(1-t6)+1;
+        ctx.shadowColor="#880011"; ctx.shadowBlur=20;
+        ctx.beginPath(); ctx.arc(p3.cx,p3.cy,(p3.r||60)*t6*2,0,Math.PI*2); ctx.stroke();
+        break;
+      case "darkLightning":
+        ctx.globalAlpha=(1-t6)*0.9;
+        ctx.strokeStyle="#aa00ff"; ctx.lineWidth=2+2*(1-t6);
+        ctx.shadowColor="#8800ff"; ctx.shadowBlur=15;
+        ctx.beginPath();
+        var lx2=(p3.cx||300), ly2=(p3.cy||200);
+        ctx.moveTo(lx2+(Math.random()-0.5)*80, ly2-80);
+        for (var sl=0; sl<6; sl++) { lx2+=(Math.random()-0.5)*30; ly2+=12+Math.random()*10; ctx.lineTo(lx2,ly2); }
+        ctx.stroke();
+        break;
+    }
+    ctx.restore();
+  }
+}
+
+function renderScene() {
+  var lvl = on.level;
+  var bg = bgCache[lvl];
+  if (!bg) { bg = bgCache[lvl] = createBgCanvas(lvl); }
+  ctx.drawImage(bg, 0, 0);
+
+  // Darken side zones
+  ctx.save();
+  ctx.fillStyle = "rgba(0,0,0,0.35)";
+  ctx.fillRect(0, 0, SIDE_W, OP_H);
+  ctx.fillRect(W - SIDE_W, 0, SIDE_W, OP_H);
+  ctx.restore();
+
+  updateAmbients(lvl);
+  drawAmbients();
+}
+
+function renderCharacters() {
+  var scale = 2.8;
+  var aw = 48*scale, ah = 64*scale;
+
+  // My character on LEFT
+  var myX = CENTER_X2 + 30;
+  var myY = OP_H*0.45 - ah*0.5 + angelBobOffset;
+
+  // Opponent character on RIGHT (flipped)
+  var oppX = CENTER_X2 + CENTER_W2 - 30 - aw;
+  var oppY = OP_H*0.45 - ah*0.5 + bossBobOffset;
+
+  if (on.me) drawSideChar(on.me, myX, myY, scale, false);
+  if (on.opp) drawSideChar(on.opp, oppX, oppY, scale, true);
+
+  // Hit flash
+  if (on.me && on.me.flash > 0) {
+    on.me.flash--;
+    ctx.save(); ctx.globalAlpha = on.me.flash/8*0.5;
+    ctx.fillStyle = "#ff4444"; ctx.fillRect(myX, myY, aw, ah);
+    ctx.restore();
+  }
+  if (on.opp && on.opp.flash > 0) {
+    on.opp.flash--;
+    ctx.save(); ctx.globalAlpha = on.opp.flash/8*0.5;
+    ctx.fillStyle = "#ff4444"; ctx.fillRect(oppX, oppY, aw, ah);
+    ctx.restore();
+  }
+}
+
+function drawSideChar(s, x, y, scale, flip) {
+  if (flip) {
+    var w7 = 48*scale;
+    ctx.save();
+    ctx.translate(x + w7, y);
+    ctx.scale(-1, 1);
+    drawCharInner(s, 0, 0, scale);
+    ctx.restore();
+  } else {
+    drawCharInner(s, x, y, scale);
+  }
+}
+
+function drawCharInner(s, x, y, scale) {
+  if (s.role === "angel") {
+    var saved = state.seraphimSparkles;
+    state.seraphimSparkles = s.seraphimSparkles || [];
+    drawAngel(x, y, scale, s.stage, angelFrame);
+    s.seraphimSparkles = state.seraphimSparkles;
+    state.seraphimSparkles = saved;
+  } else {
+    drawDevilCharOnline(x, y, scale, s.stage);
+  }
+}
+
+function drawDevilCharOnline(x, y, scale, stage) {
+  var col = bossFrame % 3;
+  if (stage >= 3) {
+    drawSprite("devil", 0, col, x, y, scale, 1.0);
+    ctx.save(); ctx.globalAlpha=0.3;
+    ctx.shadowColor="#8800ff"; ctx.shadowBlur=20;
+    ctx.fillStyle="rgba(100,0,180,0.35)";
+    ctx.fillRect(x, y, 48*scale, 64*scale);
+    ctx.restore();
+  } else if (stage >= 2) {
+    drawSprite("devil", 0, col, x, y, scale, 0.8);
+    ctx.save(); ctx.globalAlpha=0.25;
+    ctx.fillStyle="rgba(80,0,140,0.4)";
+    ctx.fillRect(x, y, 48*scale, 64*scale);
+    ctx.restore();
+  } else {
+    drawSimpleDevilOnline(x, y, scale, stage);
+  }
+  if (stage >= 4) {
+    var pulse7 = 0.5+0.5*Math.sin(Date.now()*0.004);
+    ctx.save(); ctx.globalCompositeOperation="screen";
+    ctx.globalAlpha=0.15+0.1*pulse7; ctx.fillStyle="#880000";
+    ctx.fillRect(x, y, 48*scale, 64*scale); ctx.restore();
+  }
+}
+
+function drawSimpleDevilOnline(x, y, scale, stage) {
+  var s7 = scale * 16;
+  var cx7 = x + 48*scale*0.5, cy7 = y + 64*scale*0.5;
+  ctx.save(); ctx.globalAlpha = stage===0?0.5:0.85;
+  ctx.fillStyle = stage===0?"#664488":"#992255";
+  ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur=8;
+  ctx.beginPath(); ctx.ellipse(cx7, cy7, s7*1.2, s7*1.8, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx7, cy7-s7*1.6, s7, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle="#ffaa00"; ctx.lineWidth=scale*2;
+  ctx.beginPath(); ctx.moveTo(cx7-s7*0.5, cy7-s7*2.2); ctx.lineTo(cx7-s7*0.3, cy7-s7*3); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx7+s7*0.5, cy7-s7*2.2); ctx.lineTo(cx7+s7*0.3, cy7-s7*3); ctx.stroke();
+  ctx.fillStyle="#ff2222";
+  ctx.beginPath(); ctx.arc(cx7-s7*0.3, cy7-s7*1.7, s7*0.2, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx7+s7*0.3, cy7-s7*1.7, s7*0.2, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur=0; ctx.restore();
+}
+
+// ============================================================
+// INPUT HANDLING
+// ============================================================
+window.addEventListener("keydown", function(e) {
+  if (on.phase === "lobby" || on.phase === "waiting") return;
+
+  var key = e.key.toLowerCase();
+  if (["tab","shift","control","alt","meta","escape","f1","f2","f3","f4","f5"].indexOf(key) >= 0) return;
+
+  var ANS_KEYS = {"1":0,"2":1,"3":2,"4":3};
+  var SHOOT_KEYS = new Set(["q","w","e","r","t","a","s","d","f","g","z","x","c","v","b","y","u","i","o","p","[","]","h","j","k","l",";"," "]);
+
+  if (on.phase === "training") {
+    if (ANS_KEYS.hasOwnProperty(key)) {
+      var btn7 = document.getElementById("my-btn" + ANS_KEYS[key]);
+      if (btn7 && btn7.dataset.val) {
+        if (net.isHost) {
+          handleTrainingAnswerForSide("me", btn7.dataset.val);
+        } else {
+          // Mark locally then send
+          clientHandleTrainingAnswer(btn7.dataset.val, ANS_KEYS[key]);
+        }
+      }
+    }
+    return;
+  }
+
+  if (on.phase === "battle") {
+    e.preventDefault();
+    if (ANS_KEYS.hasOwnProperty(key)) {
+      var idx7 = ANS_KEYS[key];
+      if (on.me && on.me.awaitingPower) {
+        // Select power
+        if (net.isHost) {
+          var powers7 = (on.me.role === "angel") ? ANGEL_POWERS : DEVIL_POWERS;
+          if (powers7[idx7]) selectPowerForSide("me", powers7[idx7].type);
+        } else {
+          var powers8 = (on.me.role === "angel") ? ANGEL_POWERS : DEVIL_POWERS;
+          if (powers8[idx7]) {
+            hidePowerSelectionMe();
+            clientSend({ type: "power", choice: powers8[idx7].type });
+          }
+        }
+      } else {
+        var btn8 = document.getElementById("my-btn" + idx7);
+        if (btn8 && btn8.dataset.val && btn8.dataset.mode === "battle") {
+          if (net.isHost) {
+            handleBattleAnswerForSide("me", btn8.dataset.val);
+          } else {
+            clientHandleBattleAnswer(btn8.dataset.val, idx7);
+          }
+        }
+      }
+    } else if (SHOOT_KEYS.has(key)) {
+      if (net.isHost) {
+        handleShoot("me");
+      } else {
+        clientSend({ type: "shoot" });
+      }
+    }
+  }
+});
+
+// Clicks on battlefield for shooting (client sends to host)
+onlineCanvas.addEventListener("click", function() {
+  unlockAudio();
+  if (on.phase !== "battle") return;
+  if (net.isHost) { handleShoot("me"); }
+  else { clientSend({ type: "shoot" }); }
+});
+
+// Answer button clicks
+for (var bi=0; bi<4; bi++) {
+  (function(idx8) {
+    var btn9 = document.getElementById("my-btn" + idx8);
+    btn9.addEventListener("click", function() {
+      unlockAudio();
+      if (!btn9.dataset.val) return;
+      if (on.phase === "training") {
+        if (net.isHost) {
+          handleTrainingAnswerForSide("me", btn9.dataset.val);
+        } else {
+          clientHandleTrainingAnswer(btn9.dataset.val, idx8);
+        }
+      } else if (on.phase === "battle") {
+        if (on.me && on.me.awaitingPower) {
+          var pwrs = (on.me.role === "angel") ? ANGEL_POWERS : DEVIL_POWERS;
+          if (pwrs[idx8]) {
+            if (net.isHost) selectPowerForSide("me", pwrs[idx8].type);
+            else { hidePowerSelectionMe(); clientSend({ type: "power", choice: pwrs[idx8].type }); }
+          }
+        } else {
+          if (btn9.dataset.mode === "battle") {
+            if (net.isHost) {
+              handleBattleAnswerForSide("me", btn9.dataset.val);
+            } else {
+              clientHandleBattleAnswer(btn9.dataset.val, idx8);
+            }
+          }
+        }
+      }
+    });
+  })(bi);
+}
+
+// Client-side answer handling (optimistic local feedback before host confirms)
+function clientHandleTrainingAnswer(valStr, btnIdx) {
+  if (!on.me || on.me.answerLocked || on.me.trainingDone) return;
+  on.me.answerLocked = true;
+  // Send to host
+  clientSend({ type: "answer", value: parseInt(valStr) });
+  // Optimistic feedback
+  if (on.me.currentQ) {
+    var correct8 = on.me.currentQ.a * on.me.currentQ.b;
+    var val8 = parseInt(valStr);
+    for (var i8=0; i8<4; i8++) {
+      var b8 = document.getElementById("my-btn" + i8);
+      if (parseInt(b8.dataset.val) === val8) b8.classList.add(val8===correct8?"correct":"wrong");
+      if (val8 !== correct8 && parseInt(b8.dataset.val) === correct8) b8.classList.add("correct");
+    }
+  }
+}
+
+function clientHandleBattleAnswer(valStr, btnIdx) {
+  if (!on.me || on.me.battleAnswerLocked || !on.me.battleQ || on.me.awaitingPower) return;
+  on.me.battleAnswerLocked = true;
+  clientSend({ type: "answer", value: parseInt(valStr) });
+  // Optimistic feedback
+  var correct9 = on.me.battleQ.a * on.me.battleQ.b;
+  var val9 = parseInt(valStr);
+  for (var i9=0; i9<4; i9++) {
+    var b9 = document.getElementById("my-btn" + i9);
+    if (parseInt(b9.dataset.val) === val9) b9.classList.add(val9===correct9?"correct":"wrong");
+    if (val9 !== correct9 && parseInt(b9.dataset.val) === correct9) b9.classList.add("correct");
+  }
+}
+
+// ============================================================
+// GAME LOOP
+// ============================================================
+function gameLoop(ts) {
+  requestAnimationFrame(gameLoop);
+  updateAnims();
+  applyShake();
+  checkHeartbeat();
+
+  ctx.clearRect(0, 0, W, H);
+
+  if (on.phase === "lobby") {
+    renderLobbyOnline();
+  } else {
+    renderScene();
+    renderCharacters();
+    updateParticles();
+    drawParticles();
+    renderCustomEffectsOnline();
+    renderEffects();
+  }
+}
+
+function renderLobbyOnline() {
+  var bg = bgCache[on.level];
+  if (!bg) { bg = bgCache[on.level] = createBgCanvas(on.level); }
+  ctx.drawImage(bg, 0, 0);
+  updateAmbients(on.level);
+  drawAmbients();
+  updateParticles();
+  drawParticles();
+  renderEffects();
+}
+
+// ============================================================
+// INIT
+// ============================================================
+function initOnline() {
+  bgCache[0] = createBgCanvas(0);
+  resetAmbients(0);
+
+  if (!window.state) window.state = { seraphimSparkles: [], frostSparkles: [] };
+
+  // Start state sync regardless (only sends if host+connected)
+  net.stateInterval = setInterval(function() {
+    if (net.isHost && net.conn && net.connected && on.phase !== "lobby") {
+      var snap = buildStateSnapshot();
+      try { net.conn.send(snap); } catch(e) {}
+    }
+  }, 100);
+
+  showLobby();
+  requestAnimationFrame(gameLoop);
+}
+
+loadSprites(function() {
+  initOnline();
+});
+</script>
+</body>
+</html>
