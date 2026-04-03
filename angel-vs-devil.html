@@ -2569,7 +2569,7 @@ function stopBattleTimer() {
 
 function clearBattleTimers() {
   stopBattleTimer();
-  if (state.bossAutoTimer)  { clearInterval(state.bossAutoTimer);  state.bossAutoTimer  = null; }
+  if (state.bossAutoTimer)  { clearTimeout(state.bossAutoTimer);   state.bossAutoTimer  = null; }
   if (state.questionTimer)  { clearTimeout(state.questionTimer);   state.questionTimer  = null; }
   removeBattleEventListeners();
 }
@@ -2596,6 +2596,10 @@ function doPlayerShoot() {
   if (now - state.lastShotTime < 500) return; // max 2 shots/sec
   state.lastShotTime = now;
   state.totalShotsFired++;
+  // Track recent shots for adaptive boss speed
+  if (!state.recentShots) state.recentShots = [];
+  state.recentShots.push(now);
+  if (state.recentShots.length > 10) state.recentShots.shift();
 
   const isKrakenP = (state.currentLevel === 2);
   const bossCXP = state.bossX + (isKrakenP ? 96*1.4 : 48*3)*0.5;
@@ -3477,6 +3481,7 @@ function startBattle() {
   state.angelRise = 0;
   state.lastShotTime = 0;
   state.totalShotsFired = 0;
+  state.recentShots = [];
   state.frostSparkles = [];
   state.seraphimSparkles = [];
   state.questionPending = false;
@@ -3527,11 +3532,8 @@ function startBattle() {
       // Start battle timers
       const bc = BATTLE_CONFIG[lvl];
 
-      // Boss auto-attacks at fixed interval
-      state.bossAutoTimer = setInterval(function() {
-        if (state.phase !== "battle") return;
-        doBossAutoAttack();
-      }, bc.bossAutoInterval * 1000);
+      // Boss auto-attacks adaptively based on player shooting speed
+      scheduleBossAttack();
 
       // Questions appear periodically (independent of boss attacks)
       state.questionTimer = setTimeout(function() {
@@ -3613,6 +3615,31 @@ function scheduleNextQuestion() {
   }, delay);
 }
 
+
+// Adaptive boss attack scheduling — boss matches the player's shooting pace
+function getAdaptiveBossInterval() {
+  var bc = BATTLE_CONFIG[state.currentLevel];
+  var baseInterval = bc.bossAutoInterval; // fallback
+  if (!state.recentShots || state.recentShots.length < 3) return baseInterval * 1000;
+  // Calculate player's average interval between shots (last 10)
+  var shots = state.recentShots;
+  var totalGap = shots[shots.length - 1] - shots[0];
+  var avgInterval = totalGap / (shots.length - 1); // ms between shots
+  // Boss attacks at 1.3x the player's pace (slightly slower than the kid)
+  var bossInterval = avgInterval * 1.3;
+  // Clamp: min 800ms, max = base config interval
+  return Math.max(800, Math.min(bossInterval, baseInterval * 1000));
+}
+
+function scheduleBossAttack() {
+  if (state.phase !== "battle") return;
+  var interval = getAdaptiveBossInterval();
+  state.bossAutoTimer = setTimeout(function() {
+    if (state.phase !== "battle") return;
+    doBossAutoAttack();
+    scheduleBossAttack(); // schedule next one
+  }, interval);
+}
 
 // Boss fires its themed attack automatically — 1 damage
 function doBossAutoAttack() {
