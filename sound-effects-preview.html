@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Angel vs Devil — Sound Effects Preview</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#0f0f1e; color:#eee; font-family:'Segoe UI',system-ui,sans-serif; display:flex; flex-direction:column; align-items:center; padding:24px; min-height:100vh; }
+  h1 { font-size:24px; color:#ffd700; margin-bottom:4px; letter-spacing:2px; text-shadow:0 0 15px rgba(255,215,0,0.3); }
+  .subtitle { color:#666; font-size:12px; margin-bottom:24px; }
+  h2 { font-size:14px; color:#88aaff; margin:20px 0 12px; letter-spacing:1px; text-transform:uppercase; width:100%; max-width:700px; }
+
+  .sound-grid {
+    display:flex; flex-direction:column; gap:8px; width:100%; max-width:700px;
+  }
+  .sound-row {
+    display:flex; align-items:center; gap:12px; padding:12px 16px;
+    background:linear-gradient(90deg,#1a1a35,#14142a);
+    border:1px solid #2a2a4a; border-radius:10px;
+    transition:border-color 0.2s;
+  }
+  .sound-row:hover { border-color:#444; }
+  .sound-row.playing { border-color:#ffd700; box-shadow:0 0 15px rgba(255,215,0,0.15); }
+
+  .play-btn {
+    width:48px; height:48px; border-radius:50%;
+    border:2px solid #444; background:#222;
+    color:#ffd700; font-size:20px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    transition:all 0.15s; flex-shrink:0;
+  }
+  .play-btn:hover { border-color:#ffd700; background:#2a2a40; transform:scale(1.05); }
+  .play-btn:active { transform:scale(0.95); }
+
+  .sound-info { flex:1; }
+  .sound-name { font-size:14px; font-weight:bold; color:#ddd; }
+  .sound-desc { font-size:11px; color:#777; margin-top:3px; line-height:1.4; }
+  .sound-tech { font-size:10px; color:#556; margin-top:3px; font-family:monospace; }
+
+  .viz {
+    width:120px; height:40px; background:#0a0a15; border-radius:6px;
+    border:1px solid #222; flex-shrink:0; overflow:hidden;
+  }
+  .viz canvas { width:120px; height:40px; }
+
+  .section-divider {
+    height:1px; background:linear-gradient(90deg,transparent,#333,transparent);
+    margin:8px 0; width:100%; max-width:700px;
+  }
+
+  .demo-section {
+    margin-top:24px; width:100%; max-width:700px;
+    background:linear-gradient(180deg,#1a1a35,#12122a);
+    border:2px solid #2a2a4a; border-radius:12px; padding:20px;
+    text-align:center;
+  }
+  .demo-title { font-size:14px; color:#ffd700; margin-bottom:12px; font-weight:bold; }
+  .demo-btns { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+  .demo-btn {
+    padding:12px 20px; border-radius:8px; border:2px solid #444;
+    background:#1a1a35; color:#aaa; font-size:13px; cursor:pointer;
+    transition:all 0.15s; font-weight:bold;
+  }
+  .demo-btn:hover { border-color:#88aaff; color:#88aaff; transform:translateY(-2px); }
+  .demo-btn.active { border-color:#44dd44; color:#44dd44; }
+
+  .note { color:#555; font-size:11px; margin-top:20px; text-align:center; max-width:600px; line-height:1.6; }
+</style>
+</head>
+<body>
+<h1>SOUND EFFECTS PREVIEW</h1>
+<p class="subtitle">All sounds generated procedurally with Web Audio API — no audio files needed</p>
+
+<h2>Training Phase Sounds</h2>
+<div class="sound-grid" id="training-sounds"></div>
+
+<div class="section-divider"></div>
+<h2>Battle Phase Sounds</h2>
+<div class="sound-grid" id="battle-sounds"></div>
+
+<div class="section-divider"></div>
+<h2>UI &amp; Transition Sounds</h2>
+<div class="sound-grid" id="ui-sounds"></div>
+
+<div class="demo-section">
+  <div class="demo-title">Full Sequence Demo</div>
+  <div class="demo-btns">
+    <button class="demo-btn" onclick="demoCorrectStreak()">3x Correct Streak</button>
+    <button class="demo-btn" onclick="demoBattleTurn()">Battle Turn (win)</button>
+    <button class="demo-btn" onclick="demoBattleLose()">Battle Turn (lose)</button>
+    <button class="demo-btn" onclick="demoLevelUp()">Power-Up Evolution</button>
+  </div>
+</div>
+
+<p class="note">
+  All sounds are procedurally generated using oscillators, gain envelopes, and filters.<br>
+  Zero external files — everything runs from code. Click any button to preview.
+</p>
+
+<script>
+var audioCtx = null;
+function getCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+// ===== SOUND DEFINITIONS =====
+
+function sfxCorrect() {
+  var ctx = getCtx(), t = ctx.currentTime;
+  // Happy ascending two-note chime
+  [0, 0.1].forEach(function(delay, i) {
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime([523, 784][i], t + delay); // C5, G5
+    gain.gain.setValueAtTime(0.3, t + delay);
+    gain.gain.exponentialRampToValueAtTime(0.01, t + delay + 0.25);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(t + delay); osc.stop(t + delay + 0.25);
+  });
+  // Sparkle overtone
+  var osc2 = ctx.createOscillator();
+  var g2 = ctx.createGain();
+  osc2.type = 'triangle';
+  osc2.frequency.setValueAtTime(1568, t + 0.05); // G6
+  g2.gain.setValueAtTime(0.1, t + 0.05);
+  g2.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+  osc2.connect(g2); g2.connect(ctx.destination);
+  osc2.start(t + 0.05); osc2.stop(t + 0.35);
+}
+
+function sfxWrong() {
+  var ctx = getCtx(), t = ctx.currentTime;
+  // Soft descending buzz
+  var osc = ctx.createOscillator();
+  var gain = ctx.createGain();
+  osc.type = 'square';
+  osc.frequency.setValueAtTime(220, t);
+  osc.frequency.linearRampToValueAtTime(140, t + 0.3);
+  gain.gain.setValueAtTime(0.15, t);
+  gain.gain.exponentialRampToValueAtTime(0.01, t + 0.35);
+  osc.connect(gain); gain.connect(ctx.destination);
+  osc.start(t); osc.stop(t + 0.4);
+  // Second lower tone
+  var osc2 = ctx.createOscillator();
+  var g2 = ctx.createGain();
+  osc2.type = 'sawtooth';
+  osc2.frequency.setValueAtTime(165, t + 0.05);
+  osc2.frequency.linearRampToValueAtTime(110, t + 0.3);
+  g2.gain.setValueAtTime(0.08, t + 0.05);
+  g2.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+  osc2.connect(g2); g2.connect(ctx.destination);
+  osc2.start(t + 0.05); osc2.stop(t + 0.4);
+}
+
+function sfxStreak() {
+  var ctx = getCtx(), t = ctx.currentTime;
+  // Rapid ascending arpeggio with sparkle
+  var notes = [523, 659, 784, 1047]; // C5 E5 G5 C6
+  notes.forEach(function(f, i) {
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(f, t + i * 0.08);
+    gain.gain.setValueAtTime(0.25, t + i * 0.08);
+    gain.gain.exponentialRampToValueAtTime(0.01, t + i * 0.08 + 0.3);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(t + i * 0.08); osc.stop(t + i * 0.08 + 0.35);
+  });
+  // Shimmer on top
+  var osc2 = ctx.createOscillator();
+  var g2 = ctx.createGain();
+  osc2.type = 'triangle';
+  osc2.frequency.setValueAtTime(2093, t + 0.2);
+  osc2.frequency.exponentialRampToValueAtTime(3000, t + 0.5);
+  g2.gain.setValueAtTime(0.08, t + 0.2);
+  g2.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+  osc2.connect(g2); g2.connect(ctx.destination);
+  osc2.start(t + 0.2); osc2.stop(t + 0.65);
+}
+
+function sfxPowerUp() {
+  var ctx = getCtx(), t = ctx.currentTime;
+  // Dramatic ascending sweep with fanfare
+  var osc = ctx.createOscillator();
+  var gain = ctx.createGain();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(200, t);
+  osc.frequency.exponentialRampToValueAtTime(800, t + 0.5);
+  gain.gain.setValueAtTime(0.15, t);
+  gain.gain.setValueAtTime(0.2, t + 0.3);
+  gain.gain.exponentialRampToValueAtTime(0.01, t + 0.8);
+  var filter = ctx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.setValueAtTime(400, t);
+  filter.frequency.exponentialRampToValueAtTime(3000, t + 0.5);
+  osc.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
+  osc.start(t); osc.stop(t + 0.85);
+  // Fanfare notes
+  var fanfare = [523, 659, 784, 1047, 1319]; // C5 E5 G5 C6 E6
+  fanfare.forEach(function(f, i) {
+    var o = ctx.createOscillator();
+    var g = ctx.createGain();
+    o.type = 'square';
+    o.frequency.setValueAtTime(f, t + 0.4 + i * 0.1);
+    g.gain.setValueAtTime(0.12, t + 0.4 + i * 0.1);
+    g.gain.exponentialRampToValueAtTime(0.01, t + 0.4 + i * 0.1 + 0.35);
+    o.connect(g); g.connect(ctx.destination);
+    o.start(t + 0.4 + i * 0.1); o.stop(t + 0.4 + i * 0.1 + 0.4);
+  });
+}
+
+function sfxAttackHit() {
+  var ctx = getCtx(), t = ctx.currentTime;
+  // Sharp impact with metallic ring
+  var noise = ctx.createBufferSource();
+  var buf = ctx.createBuffer(1, ctx.sampleRate * 0.15, ctx.sampleRate);
+  var data = buf.getChannelData(0);
+  for (var i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i/data.length, 2);
+  noise.buffer = buf;
+  var noiseGain = ctx.createGain();
+  noiseGain.gain.setValueAtTime(0.4, t);
+  noiseGain.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
+  var filter = ctx.createBiquadFilter();
+  filter.type = 'highpass'; filter.frequency.value = 800;
+  noise.connect(filter); filter.connect(noiseGain); noiseGain.connect(ctx.destination);
+  noise.start(t);
+  // Metallic ring
+  var osc = ctx.createOscillator();
+  var g = ctx.createGain();
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(880, t);
+  osc.frequency.exponentialRampToValueAtTime(440, t + 0.2);
+  g.gain.setValueAtTime(0.2, t);
+  g.gain.exponentialRampToValueAtTime(0.01, t + 0.25);
+  osc.connect(g); g.connect(ctx.destination);
+  osc.start(t); osc.stop(t + 0.3);
+}
+
+function sfxDivineStrike() {
+  var ctx = getCtx(), t = ctx.currentTime;
+  // Powerful holy slash — whoosh + impact + holy ring
+  // Whoosh
+  var noise = ctx.createBufferSource();
+  var buf = ctx.createBuffer(1, ctx.sampleRate * 0.3, ctx.sampleRate);
+  var data = buf.getChannelData(0);
+  for (var i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i/data.length, 3);
+  noise.buffer = buf;
+  var ng = ctx.createGain();
+  ng.gain.setValueAtTime(0.3, t);
+  ng.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
+  var flt = ctx.createBiquadFilter();
+  flt.type = 'bandpass'; flt.frequency.setValueAtTime(2000, t);
+  flt.frequency.exponentialRampToValueAtTime(500, t + 0.2);
+  noise.connect(flt); flt.connect(ng); ng.connect(ctx.destination);
+  noise.start(t);
+  // Impact
+  var osc = ctx.createOscillator();
+  var g = ctx.createGain();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(150, t + 0.1);
+  osc.frequency.exponentialRampToValueAtTime(60, t + 0.3);
+  g.gain.setValueAtTime(0.3, t + 0.1);
+  g.gain.exponentialRampToValueAtTime(0.01, t + 0.35);
+  osc.connect(g); g.connect(ctx.destination);
+  osc.start(t + 0.1); osc.stop(t + 0.4);
+  // Holy ring
+  [1047, 1319, 1568].forEach(function(f, i) {
+    var o = ctx.createOscillator();
+    var gg = ctx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(f, t + 0.15);
+    gg.gain.setValueAtTime(0.1, t + 0.15);
+    gg.gain.exponentialRampToValueAtTime(0.001, t + 0.7);
+    o.connect(gg); gg.connect(ctx.destination);
+    o.start(t + 0.15); o.stop(t + 0.75);
+  });
+}
+
+function sfxDevilAttack() {
+  var ctx = getCtx(), t = ctx.currentTime;
+  // Dark rumbling hit
+  var osc = ctx.createOscillator();
+  var gain = ctx.createGain();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(120, t);
+  osc.frequency.exponentialRampToValueAtTime(50, t + 0.3);
+  gain.gain.setValueAtTime(0.25, t);
+  gain.gain.exponentialRampToValueAtTime(0.01, t + 0.35);
+  var flt = ctx.createBiquadFilter();
+  flt.type = 'lowpass'; flt.frequency.value = 400;
+  osc.connect(flt); flt.connect(gain); gain.connect(ctx.destination);
+  osc.start(t); osc.stop(t + 0.4);
+  // Crackle
+  var noise = ctx.createBufferSource();
+  var buf = ctx.createBuffer(1, ctx.sampleRate * 0.2, ctx.sampleRate);
+  var data = buf.getChannelData(0);
+  for (var i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i/data.length, 4) * (Math.random() > 0.7 ? 1 : 0.2);
+  noise.buffer = buf;
+  var ng = ctx.createGain();
+  ng.gain.setValueAtTime(0.2, t + 0.05);
+  ng.gain.exponentialRampToValueAtTime(0.01, t + 0.25);
+  noise.connect(ng); ng.connect(ctx.destination);
+  noise.start(t + 0.05);
+}
+
+function sfxSuperPower() {
+  var ctx = getCtx(), t = ctx.currentTime;
+  // Magical charge-up shimmer with crescendo
+  var osc = ctx.createOscillator();
+  var gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(300, t);
+  osc.frequency.exponentialRampToValueAtTime(1200, t + 0.6);
+  gain.gain.setValueAtTime(0.05, t);
+  gain.gain.linearRampToValueAtTime(0.25, t + 0.4);
+  gain.gain.exponentialRampToValueAtTime(0.01, t + 0.9);
+  osc.connect(gain); gain.connect(ctx.destination);
+  osc.start(t); osc.stop(t + 0.95);
+  // Sparkle layer
+  for (var i = 0; i < 6; i++) {
+    var o = ctx.createOscillator();
+    var g = ctx.createGain();
+    o.type = 'triangle';
+    o.frequency.setValueAtTime(800 + i * 300 + Math.random() * 200, t + i * 0.08);
+    g.gain.setValueAtTime(0.08, t + i * 0.08);
+    g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.08 + 0.2);
+    o.connect(g); g.connect(ctx.destination);
+    o.start(t + i * 0.08); o.stop(t + i * 0.08 + 0.25);
+  }
+  // Final chime
+  [1047, 1319, 1568].forEach(function(f) {
+    var o = ctx.createOscillator();
+    var g = ctx.createGain();
+    o.type = 'sine';
+    o.frequency.value = f;
+    g.gain.setValueAtTime(0.15, t + 0.55);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 1.2);
+    o.connect(g); g.connect(ctx.destination);
+    o.start(t + 0.55); o.stop(t + 1.25);
+  });
+}
+
+function sfxVictory() {
+  var ctx = getCtx(), t = ctx.currentTime;
+  // Triumphant fanfare melody
+  var melody = [
+    [523, 0, 0.15], [659, 0.15, 0.15], [784, 0.3, 0.15], [1047, 0.45, 0.3],
+    [784, 0.8, 0.1], [1047, 0.95, 0.15], [1319, 1.15, 0.5]
+  ];
+  melody.forEach(function(n) {
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(n[0], t + n[1]);
+    gain.gain.setValueAtTime(0.15, t + n[1]);
+    gain.gain.setValueAtTime(0.15, t + n[1] + n[2] * 0.7);
+    gain.gain.exponentialRampToValueAtTime(0.01, t + n[1] + n[2]);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(t + n[1]); osc.stop(t + n[1] + n[2] + 0.05);
+  });
+  // Bass line
+  [262, 330, 392, 523].forEach(function(f, i) {
+    var o = ctx.createOscillator();
+    var g = ctx.createGain();
+    o.type = 'triangle';
+    o.frequency.value = f;
+    g.gain.setValueAtTime(0.1, t + i * 0.3);
+    g.gain.exponentialRampToValueAtTime(0.01, t + i * 0.3 + 0.3);
+    o.connect(g); g.connect(ctx.destination);
+    o.start(t + i * 0.3); o.stop(t + i * 0.3 + 0.35);
+  });
+}
+
+function sfxDefeat() {
+  var ctx = getCtx(), t = ctx.currentTime;
+  // Sad descending melody
+  var melody = [
+    [523, 0, 0.25], [494, 0.3, 0.25], [440, 0.6, 0.25], [330, 0.9, 0.5]
+  ];
+  melody.forEach(function(n) {
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(n[0], t + n[1]);
+    gain.gain.setValueAtTime(0.18, t + n[1]);
+    gain.gain.exponentialRampToValueAtTime(0.01, t + n[1] + n[2]);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(t + n[1]); osc.stop(t + n[1] + n[2] + 0.05);
+  });
+}
+
+function sfxTimerTick() {
+  var ctx = getCtx(), t = ctx.currentTime;
+  var osc = ctx.createOscillator();
+  var gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = 880;
+  gain.gain.setValueAtTime(0.15, t);
+  gain.gain.exponentialRampToValueAtTime(0.01, t + 0.08);
+  osc.connect(gain); gain.connect(ctx.destination);
+  osc.start(t); osc.stop(t + 0.1);
+}
+
+function sfxTimerUrgent() {
+  var ctx = getCtx(), t = ctx.currentTime;
+  // Fast double beep
+  [0, 0.12].forEach(function(d) {
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.type = 'square';
+    osc.frequency.value = 1200;
+    gain.gain.setValueAtTime(0.12, t + d);
+    gain.gain.exponentialRampToValueAtTime(0.01, t + d + 0.06);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(t + d); osc.stop(t + d + 0.08);
+  });
+}
+
+function sfxTransition() {
+  var ctx = getCtx(), t = ctx.currentTime;
+  // Whoosh sweep
+  var osc = ctx.createOscillator();
+  var gain = ctx.createGain();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(100, t);
+  osc.frequency.exponentialRampToValueAtTime(2000, t + 0.3);
+  osc.frequency.exponentialRampToValueAtTime(100, t + 0.6);
+  gain.gain.setValueAtTime(0.01, t);
+  gain.gain.linearRampToValueAtTime(0.15, t + 0.15);
+  gain.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
+  var flt = ctx.createBiquadFilter();
+  flt.type = 'lowpass';
+  flt.frequency.setValueAtTime(200, t);
+  flt.frequency.exponentialRampToValueAtTime(4000, t + 0.3);
+  flt.frequency.exponentialRampToValueAtTime(200, t + 0.6);
+  osc.connect(flt); flt.connect(gain); gain.connect(ctx.destination);
+  osc.start(t); osc.stop(t + 0.65);
+}
+
+function sfxBattleStart() {
+  var ctx = getCtx(), t = ctx.currentTime;
+  // Dramatic horn + drum roll
+  // Low horn
+  var horn = ctx.createOscillator();
+  var hg = ctx.createGain();
+  horn.type = 'sawtooth';
+  horn.frequency.setValueAtTime(147, t); // D3
+  hg.gain.setValueAtTime(0.2, t);
+  hg.gain.setValueAtTime(0.2, t + 0.6);
+  hg.gain.exponentialRampToValueAtTime(0.01, t + 0.9);
+  var hf = ctx.createBiquadFilter();
+  hf.type = 'lowpass'; hf.frequency.value = 600;
+  horn.connect(hf); hf.connect(hg); hg.connect(ctx.destination);
+  horn.start(t); horn.stop(t + 0.95);
+  // High horn melody
+  [294, 392, 294, 392, 523].forEach(function(f, i) {
+    var o = ctx.createOscillator();
+    var g = ctx.createGain();
+    o.type = 'square';
+    o.frequency.value = f;
+    var st = t + 0.3 + i * 0.15;
+    g.gain.setValueAtTime(0.1, st);
+    g.gain.exponentialRampToValueAtTime(0.01, st + 0.15);
+    o.connect(g); g.connect(ctx.destination);
+    o.start(st); o.stop(st + 0.18);
+  });
+  // Drum hits
+  for (var i = 0; i < 4; i++) {
+    var noise = ctx.createBufferSource();
+    var buf = ctx.createBuffer(1, ctx.sampleRate * 0.08, ctx.sampleRate);
+    var data = buf.getChannelData(0);
+    for (var j = 0; j < data.length; j++) data[j] = (Math.random() * 2 - 1) * Math.pow(1 - j/data.length, 3);
+    noise.buffer = buf;
+    var ng = ctx.createGain();
+    ng.gain.setValueAtTime(0.2, t + i * 0.2);
+    ng.gain.exponentialRampToValueAtTime(0.01, t + i * 0.2 + 0.08);
+    noise.connect(ng); ng.connect(ctx.destination);
+    noise.start(t + i * 0.2);
+  }
+}
+
+// ===== BUILD UI =====
+
+var sounds = {
+  training: [
+    { name:'Correct Answer', desc:'Happy ascending chime — plays on every right answer', tech:'sine C5→G5 + triangle G6 sparkle', fn:sfxCorrect },
+    { name:'Wrong Answer', desc:'Soft descending buzz — gentle, not punishing', tech:'square 220→140Hz + sawtooth undertone', fn:sfxWrong },
+    { name:'Streak Bonus (3x)', desc:'Rapid ascending arpeggio with shimmer — rewards combos', tech:'sine C5-E5-G5-C6 arp + triangle shimmer', fn:sfxStreak },
+    { name:'Power-Up / Evolution', desc:'Dramatic sweep into triumphant fanfare — plays when angel evolves', tech:'sawtooth sweep + square fanfare + filter', fn:sfxPowerUp },
+  ],
+  battle: [
+    { name:'Angel Attack Hit', desc:'Sharp metallic impact — standard attack landing', tech:'noise burst + triangle 880→440Hz ring', fn:sfxAttackHit },
+    { name:'Divine Strike (3x)', desc:'Holy slash with whoosh, impact, and angelic ring — big damage', tech:'noise whoosh + sawtooth hit + sine chord', fn:sfxDivineStrike },
+    { name:'Devil Attack', desc:'Dark rumbling hit with crackle — when the devil strikes back', tech:'sawtooth 120→50Hz + noise crackle + lowpass', fn:sfxDevilAttack },
+    { name:'Super Power Activated', desc:'Magical charge-up shimmer with crescendo and chime', tech:'sine sweep + triangle sparkles + chord', fn:sfxSuperPower },
+  ],
+  ui: [
+    { name:'Timer Tick', desc:'Subtle ping for each second countdown', tech:'sine 880Hz, 80ms', fn:sfxTimerTick },
+    { name:'Timer Urgent (<3s)', desc:'Fast double beep when time is running out', tech:'square 1200Hz double pulse', fn:sfxTimerUrgent },
+    { name:'Phase Transition', desc:'Whoosh sweep between training and battle', tech:'sawtooth sweep + bandpass filter', fn:sfxTransition },
+    { name:'Battle Start', desc:'Dramatic horn + drum roll when the devil appears', tech:'sawtooth horn + square melody + noise drums', fn:sfxBattleStart },
+    { name:'Victory Fanfare', desc:'Triumphant melody — you beat the devil!', tech:'square melody C-E-G-C + triangle bass', fn:sfxVictory },
+    { name:'Defeat', desc:'Sad descending notes — encouraging, not harsh', tech:'triangle C5-B4-A4-E4 descending', fn:sfxDefeat },
+  ]
+};
+
+function buildRows(category, containerId) {
+  var container = document.getElementById(containerId);
+  sounds[category].forEach(function(s) {
+    var row = document.createElement('div');
+    row.className = 'sound-row';
+    var btn = document.createElement('button');
+    btn.className = 'play-btn';
+    btn.innerHTML = '&#9654;';
+    btn.onclick = function() {
+      s.fn();
+      row.classList.add('playing');
+      setTimeout(function() { row.classList.remove('playing'); }, 800);
+    };
+    row.appendChild(btn);
+    var info = document.createElement('div');
+    info.className = 'sound-info';
+    info.innerHTML = '<div class="sound-name">' + s.name + '</div><div class="sound-desc">' + s.desc + '</div><div class="sound-tech">' + s.tech + '</div>';
+    row.appendChild(info);
+    container.appendChild(row);
+  });
+}
+buildRows('training', 'training-sounds');
+buildRows('battle', 'battle-sounds');
+buildRows('ui', 'ui-sounds');
+
+// ===== SEQUENCE DEMOS =====
+function demoCorrectStreak() {
+  sfxCorrect();
+  setTimeout(sfxCorrect, 600);
+  setTimeout(function() { sfxCorrect(); setTimeout(sfxStreak, 200); }, 1200);
+}
+function demoBattleTurn() {
+  sfxDivineStrike();
+  setTimeout(sfxSuperPower, 800);
+}
+function demoBattleLose() {
+  sfxWrong();
+  setTimeout(sfxDevilAttack, 500);
+}
+function demoLevelUp() {
+  sfxCorrect();
+  setTimeout(sfxPowerUp, 400);
+}
+</script>
+</body>
+</html>
