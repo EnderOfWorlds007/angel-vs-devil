@@ -1977,11 +1977,8 @@ function generateDistractors(a, b, level) {
     [wrong[i],wrong[j]] = [wrong[j],wrong[i]];
   }
   const choices = [correct, wrong[0], wrong[1], wrong[2]];
-  // Shuffle choices
-  for (let i=choices.length-1; i>0; i--) {
-    const j = Math.floor(Math.random()*(i+1));
-    [choices[i],choices[j]] = [choices[j],choices[i]];
-  }
+  // Sort ascending so kids can find answers quickly
+  choices.sort((a, b) => a - b);
   return choices;
 }
 
