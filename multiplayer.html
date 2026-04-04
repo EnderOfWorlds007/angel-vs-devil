@@ -165,13 +165,10 @@ html, body {
 
 /* Character preview canvas inside each side panel */
 .mp-char-canvas-wrap {
-  display:flex; justify-content:center; align-items:center;
-  margin-bottom:6px;
+  flex:1; display:flex; justify-content:center; align-items:center;
 }
 .mp-char-canvas-wrap canvas {
   image-rendering:pixelated;
-  border-radius:6px;
-  background:rgba(0,0,0,0.25);
 }
 
 /* Question area inside HUD panels */
@@ -416,7 +413,7 @@ html, body {
       <div class="mp-shield-row" id="left-shield-row"></div>
 
       <div class="mp-char-canvas-wrap">
-        <canvas id="left-char-canvas" width="120" height="160"></canvas>
+        <canvas id="left-char-canvas" width="192" height="256"></canvas>
       </div>
 
       <div class="mp-train-count" id="left-train-count" style="display:none"></div>
@@ -452,7 +449,7 @@ html, body {
       <div class="mp-shield-row" id="right-shield-row"></div>
 
       <div class="mp-char-canvas-wrap">
-        <canvas id="right-char-canvas" width="120" height="160"></canvas>
+        <canvas id="right-char-canvas" width="192" height="256"></canvas>
       </div>
 
       <div class="mp-train-count" id="right-train-count" style="display:none"></div>
@@ -2137,8 +2134,8 @@ function drawSideCanvases() {
   if (!leftCharCtx || !rightCharCtx) return;
   if (!mp.left || !mp.right) return;
 
-  var cw = 120, ch = 160;
-  var scale = 2.0;
+  var cw = 192, ch = 256;
+  var scale = 3.0;
   var charW = 48 * scale, charH = 64 * scale;
   var offX = Math.floor((cw - charW) / 2);
   var offY = Math.floor((ch - charH) / 2);
